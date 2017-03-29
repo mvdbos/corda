@@ -21,7 +21,6 @@ import net.corda.node.services.messaging.NodeLoginModule.Companion.PEER_ROLE
 import net.corda.node.services.messaging.NodeLoginModule.Companion.RPC_ROLE
 import net.corda.node.services.messaging.NodeLoginModule.Companion.VERIFIER_ROLE
 import net.corda.nodeapi.*
-import net.corda.nodeapi.ArtemisMessagingComponent.Companion.CLIENTS_PREFIX
 import net.corda.nodeapi.ArtemisMessagingComponent.Companion.NODE_USER
 import net.corda.nodeapi.ArtemisMessagingComponent.Companion.PEER_USER
 import org.apache.activemq.artemis.api.core.SimpleString
@@ -185,10 +184,7 @@ class ArtemisMessagingServer(override val config: NodeConfiguration,
                 // Create an RPC queue: this will service locally connected clients only (not via a bridge) and those
                 // clients must have authenticated. We could use a single consumer for everything and perhaps we should,
                 // but these queues are not worth persisting.
-                queueConfig(RPC_REQUESTS_QUEUE, durable = false),
-                // The custom name for the queue is intentional - we may wish other things to subscribe to the
-                // NOTIFICATIONS_ADDRESS with different filters in future
-                queueConfig(RPC_QUEUE_REMOVALS_QUEUE, address = NOTIFICATIONS_ADDRESS, filter = "_AMQ_NotifType = 1", durable = false)
+                queueConfig(RPCApi.RPC_SERVER_QUEUE_NAME, durable = false)
         )
         configureAddressSecurity()
     }
@@ -213,16 +209,16 @@ class ArtemisMessagingServer(override val config: NodeConfiguration,
         val nodeInternalRole = Role(NODE_ROLE, true, true, true, true, true, true, true, true)
         securityRoles["$INTERNAL_PREFIX#"] = setOf(nodeInternalRole)  // Do not add any other roles here as it's only for the node
         securityRoles[P2P_QUEUE] = setOf(nodeInternalRole, restrictedRole(PEER_ROLE, send = true))
-        securityRoles[RPC_REQUESTS_QUEUE] = setOf(nodeInternalRole, restrictedRole(RPC_ROLE, send = true))
+        securityRoles[RPCApi.RPC_SERVER_QUEUE_NAME] = setOf(nodeInternalRole, restrictedRole(RPC_ROLE, send = true))
         // TODO remove the NODE_USER role once the webserver doesn't need it
-        securityRoles["$CLIENTS_PREFIX$NODE_USER.rpc.*"] = setOf(nodeInternalRole)
+        securityRoles["${RPCApi.RPC_CLIENT_QUEUE_NAME_PREFIX}.$NODE_USER.#"] = setOf(nodeInternalRole)
         for ((username) in userService.users) {
-            securityRoles["$CLIENTS_PREFIX$username.rpc.*"] = setOf(
+            securityRoles["${RPCApi.RPC_CLIENT_QUEUE_NAME_PREFIX}.$username.#"] = setOf(
                     nodeInternalRole,
-                    restrictedRole("$CLIENTS_PREFIX$username", consume = true, createNonDurableQueue = true, deleteNonDurableQueue = true))
+                    restrictedRole("${RPCApi.RPC_CLIENT_QUEUE_NAME_PREFIX}.$username", consume = true, createNonDurableQueue = true, deleteNonDurableQueue = true))
         }
         securityRoles[VerifierApi.VERIFICATION_REQUESTS_QUEUE_NAME] = setOf(nodeInternalRole, restrictedRole(VERIFIER_ROLE, consume = true))
-        securityRoles["${VerifierApi.VERIFICATION_RESPONSES_QUEUE_NAME_PREFIX}.*"] = setOf(nodeInternalRole, restrictedRole(VERIFIER_ROLE, send = true))
+        securityRoles["${VerifierApi.VERIFICATION_RESPONSES_QUEUE_NAME_PREFIX}.#"] = setOf(nodeInternalRole, restrictedRole(VERIFIER_ROLE, send = true))
     }
 
     private fun restrictedRole(name: String, send: Boolean = false, consume: Boolean = false, createDurableQueue: Boolean = false,
@@ -631,7 +627,7 @@ class NodeLoginModule : LoginModule {
             throw FailedLoginException("Password for user $username does not match")
         }
         principals += RolePrincipal(RPC_ROLE)  // This enables the RPC client to send requests
-        principals += RolePrincipal("$CLIENTS_PREFIX$username")  // This enables the RPC client to receive responses
+        principals += RolePrincipal("${RPCApi.RPC_CLIENT_QUEUE_NAME_PREFIX}.$username")  // This enables the RPC client to receive responses
         return username
     }
 

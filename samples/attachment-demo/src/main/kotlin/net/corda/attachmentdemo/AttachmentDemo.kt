@@ -3,6 +3,7 @@ package net.corda.attachmentdemo
 import com.google.common.net.HostAndPort
 import joptsimple.OptionParser
 import net.corda.client.rpc.CordaRPCClient
+import net.corda.client.rpc.start
 import net.corda.core.contracts.Contract
 import net.corda.core.contracts.ContractState
 import net.corda.core.contracts.TransactionForContract
@@ -18,8 +19,10 @@ import net.corda.core.utilities.DUMMY_NOTARY
 import net.corda.core.utilities.DUMMY_NOTARY_KEY
 import net.corda.core.utilities.Emoji
 import net.corda.flows.FinalityFlow
+import net.corda.node.driver.poll
 import java.io.InputStream
 import java.security.PublicKey
+import java.util.concurrent.Executors
 import kotlin.system.exitProcess
 import kotlin.test.assertEquals
 
@@ -45,15 +48,15 @@ fun main(args: Array<String>) {
         Role.SENDER -> {
             val host = HostAndPort.fromString("localhost:10006")
             println("Connecting to sender node ($host)")
-            CordaRPCClient(host).use("demo", "demo") {
-                sender(this)
+            CordaRPCClient(host).start("demo", "demo").use {
+                sender(it.proxy)
             }
         }
         Role.RECIPIENT -> {
             val host = HostAndPort.fromString("localhost:10009")
             println("Connecting to the recipient node ($host)")
-            CordaRPCClient(host).use("demo", "demo") {
-                recipient(this)
+            CordaRPCClient(host).start("demo", "demo").use {
+                recipient(it.proxy)
             }
         }
     }
@@ -67,7 +70,8 @@ fun sender(rpc: CordaRPCOps, numOfClearBytes: Int = 1024) { // default size 1K.
 
 fun sender(rpc: CordaRPCOps, inputStream: InputStream, hash: SecureHash.SHA256) {
     // Get the identity key of the other side (the recipient).
-    val otherSide: Party = rpc.partyFromName(DUMMY_BANK_B.name) ?: throw IllegalStateException("Could not find counterparty \"${DUMMY_BANK_B.name}\"")
+    val executor = Executors.newScheduledThreadPool(1)
+    val otherSide: Party = poll(executor, DUMMY_BANK_B.name) { rpc.partyFromName(DUMMY_BANK_B.name) }.get()
 
     // Make sure we have the file in storage
     if (!rpc.attachmentExists(hash)) {
@@ -92,6 +96,7 @@ fun sender(rpc: CordaRPCOps, inputStream: InputStream, hash: SecureHash.SHA256) 
     val flowHandle = rpc.startTrackedFlow(::FinalityFlow, stx, setOf(otherSide))
     flowHandle.progress.subscribe(::println)
     flowHandle.returnValue.getOrThrow()
+    println("Sent ${stx.id}")
 }
 
 fun recipient(rpc: CordaRPCOps) {

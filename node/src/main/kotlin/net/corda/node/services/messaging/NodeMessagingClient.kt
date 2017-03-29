@@ -8,7 +8,6 @@ import net.corda.core.node.VersionInfo
 import net.corda.core.node.services.PartyInfo
 import net.corda.core.node.services.TransactionVerifierService
 import net.corda.core.random63BitValue
-import net.corda.core.serialization.SerializedBytes
 import net.corda.core.serialization.opaque
 import net.corda.core.success
 import net.corda.core.transactions.LedgerTransaction
@@ -23,10 +22,7 @@ import net.corda.node.services.statemachine.StateMachineManager
 import net.corda.node.services.transactions.InMemoryTransactionVerifierService
 import net.corda.node.services.transactions.OutOfProcessTransactionVerifierService
 import net.corda.node.utilities.*
-import net.corda.nodeapi.ArtemisMessagingComponent
-import net.corda.nodeapi.ArtemisTcpTransport
-import net.corda.nodeapi.ConnectionDirection
-import net.corda.nodeapi.VerifierApi
+import net.corda.nodeapi.*
 import net.corda.nodeapi.VerifierApi.VERIFICATION_REQUESTS_QUEUE_NAME
 import net.corda.nodeapi.VerifierApi.VERIFICATION_RESPONSES_QUEUE_NAME_PREFIX
 import org.apache.activemq.artemis.api.core.ActiveMQObjectClosedException
@@ -71,7 +67,7 @@ class NodeMessagingClient(override val config: NodeConfiguration,
                           val versionInfo: VersionInfo,
                           val serverHostPort: HostAndPort,
                           val myIdentity: PublicKey?,
-                          val nodeExecutor: AffinityExecutor,
+                          val nodeExecutor: AffinityExecutor.ServiceAffinityExecutor,
                           val database: Database,
                           val networkMapRegistrationFuture: ListenableFuture<Unit>,
                           val monitoringService: MonitoringService
@@ -98,11 +94,9 @@ class NodeMessagingClient(override val config: NodeConfiguration,
         var producer: ClientProducer? = null
         var p2pConsumer: ClientConsumer? = null
         var session: ClientSession? = null
-        var clientFactory: ClientSessionFactory? = null
-        var rpcDispatcher: RPCDispatcher? = null
+        var sessionFactory: ClientSessionFactory? = null
+        var rpcServer: RPCServer? = null
         // Consumer for inbound client RPC messages.
-        var rpcConsumer: ClientConsumer? = null
-        var rpcNotificationConsumer: ClientConsumer? = null
         var verificationResponseConsumer: ClientConsumer? = null
     }
 
@@ -155,18 +149,19 @@ class NodeMessagingClient(override val config: NodeConfiguration,
             val tcpTransport = ArtemisTcpTransport.tcpTransport(ConnectionDirection.Outbound(), serverHostPort, config)
             val locator = ActiveMQClient.createServerLocatorWithoutHA(tcpTransport)
             locator.minLargeMessageSize = ArtemisMessagingServer.MAX_FILE_SIZE
-            clientFactory = locator.createSessionFactory()
+            sessionFactory = locator.createSessionFactory()
 
             // Login using the node username. The broker will authentiate us as its node (as opposed to another peer)
             // using our TLS certificate.
             // Note that the acknowledgement of messages is not flushed to the Artermis journal until the default buffer
             // size of 1MB is acknowledged.
-            val session = clientFactory!!.createSession(NODE_USER, NODE_USER, false, true, true, locator.isPreAcknowledge, DEFAULT_ACK_BATCH_SIZE)
+            val session = sessionFactory!!.createSession(NODE_USER, NODE_USER, false, true, true, locator.isPreAcknowledge, DEFAULT_ACK_BATCH_SIZE)
             this.session = session
             session.start()
 
             // Create a general purpose producer.
-            producer = session.createProducer()
+            val producer = session.createProducer()
+            this.producer = producer
 
             // Create a queue, consumer and producer for handling P2P network messages.
             p2pConsumer = makeP2PConsumer(session, true)
@@ -182,9 +177,7 @@ class NodeMessagingClient(override val config: NodeConfiguration,
                 }
             }
 
-            rpcConsumer = session.createConsumer(RPC_REQUESTS_QUEUE)
-            rpcNotificationConsumer = session.createConsumer(RPC_QUEUE_REMOVALS_QUEUE)
-            rpcDispatcher = createRPCDispatcher(rpcOps, userService, config.myLegalName)
+            rpcServer = RPCServer(rpcOps, NODE_USER, NODE_USER, locator, userService, config.myLegalName)
 
             fun checkVerifierCount() {
                 if (session.queueQuery(SimpleString(VERIFICATION_REQUESTS_QUEUE_NAME)).consumerCount == 0) {
@@ -258,7 +251,7 @@ class NodeMessagingClient(override val config: NodeConfiguration,
             check(started) { "start must be called first" }
             check(!running) { "run can't be called twice" }
             running = true
-            rpcDispatcher!!.start(rpcConsumer!!, rpcNotificationConsumer!!, nodeExecutor)
+            rpcServer!!.start()
             (verifierService as? OutOfProcessTransactionVerifierService)?.start(verificationResponseConsumer!!)
             p2pConsumer!!
         }
@@ -388,17 +381,13 @@ class NodeMessagingClient(override val config: NodeConfiguration,
         // Only first caller to gets running true to protect against double stop, which seems to happen in some integration tests.
         if (running) {
             state.locked {
-                rpcConsumer?.close()
-                rpcConsumer = null
-                rpcNotificationConsumer?.close()
-                rpcNotificationConsumer = null
                 producer?.close()
                 producer = null
                 // Ensure any trailing messages are committed to the journal
                 session!!.commit()
                 // Closing the factory closes all the sessions it produced as well.
-                clientFactory!!.close()
-                clientFactory = null
+                sessionFactory!!.close()
+                sessionFactory = null
             }
         }
     }
@@ -485,22 +474,6 @@ class NodeMessagingClient(override val config: NodeConfiguration,
             override fun toString() = "$topicSession#${String(data)}"
         }
     }
-
-    private fun createRPCDispatcher(ops: RPCOps, userService: RPCUserService, nodeLegalName: String) =
-            object : RPCDispatcher(ops, userService, nodeLegalName) {
-                override fun send(data: SerializedBytes<*>, toAddress: String) {
-                    messagingExecutor.fetchFrom {
-                        state.locked {
-                            val msg = session!!.createMessage(false).apply {
-                                writeBodyBufferBytes(data.bytes)
-                                // Use the magic deduplication property built into Artemis as our message identity too
-                                putStringProperty(HDR_DUPLICATE_DETECTION_ID, SimpleString(UUID.randomUUID().toString()))
-                            }
-                            producer!!.send(toAddress, msg)
-                        }
-                    }
-                }
-            }
 
     private fun createOutOfProcessVerifierService(): TransactionVerifierService {
         return object : OutOfProcessTransactionVerifierService(monitoringService) {

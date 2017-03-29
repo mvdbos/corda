@@ -2,6 +2,7 @@ package net.corda.docs
 
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import net.corda.client.rpc.start
 import net.corda.contracts.asset.Cash
 import net.corda.core.contracts.DOLLARS
 import net.corda.core.getOrThrow
@@ -44,12 +45,10 @@ class IntegrationTestingTutorial {
 
             // START 2
             val aliceClient = alice.rpcClientToNode()
-            aliceClient.start("aliceUser", "testPassword1")
-            val aliceProxy = aliceClient.proxy()
+            val aliceProxy = aliceClient.start("aliceUser", "testPassword1").proxy
 
             val bobClient = bob.rpcClientToNode()
-            bobClient.start("bobUser", "testPassword2")
-            val bobProxy = bobClient.proxy()
+            val bobProxy = bobClient.start("bobUser", "testPassword2").proxy
             // END 2
 
             // START 3

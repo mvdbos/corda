@@ -1,6 +1,7 @@
 package net.corda.docs
 
 import net.corda.client.rpc.notUsed
+import net.corda.client.rpc.start
 import net.corda.contracts.asset.Cash
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.USD
@@ -55,8 +56,7 @@ fun main(args: Array<String>) {
 
         // START 2
         val client = node.rpcClientToNode()
-        client.start("user", "password")
-        val proxy = client.proxy()
+        val proxy = client.start("user", "password").proxy
 
         thread {
             generateTransactions(proxy)

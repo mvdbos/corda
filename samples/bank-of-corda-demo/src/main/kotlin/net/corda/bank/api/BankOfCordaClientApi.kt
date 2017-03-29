@@ -3,6 +3,7 @@ package net.corda.bank.api
 import com.google.common.net.HostAndPort
 import net.corda.bank.api.BankOfCordaWebApi.IssueRequestParams
 import net.corda.client.rpc.CordaRPCClient
+import net.corda.client.rpc.start
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.currency
 import net.corda.core.getOrThrow
@@ -32,18 +33,19 @@ class BankOfCordaClientApi(val hostAndPort: HostAndPort) {
     fun requestRPCIssue(params: IssueRequestParams): SignedTransaction {
         val client = CordaRPCClient(hostAndPort)
         // TODO: privileged security controls required
-        client.start("bankUser", "test")
-        val proxy = client.proxy()
+        client.start("bankUser", "test").use { connection ->
+            val proxy = connection.proxy
 
-        // Resolve parties via RPC
-        val issueToParty = proxy.partyFromName(params.issueToPartyName)
-                ?: throw Exception("Unable to locate ${params.issueToPartyName} in Network Map Service")
-        val issuerBankParty = proxy.partyFromName(params.issuerBankName)
-                ?: throw Exception("Unable to locate ${params.issuerBankName} in Network Map Service")
+            // Resolve parties via RPC
+            val issueToParty = proxy.partyFromName(params.issueToPartyName)
+                    ?: throw Exception("Unable to locate ${params.issueToPartyName} in Network Map Service")
+            val issuerBankParty = proxy.partyFromName(params.issuerBankName)
+                    ?: throw Exception("Unable to locate ${params.issuerBankName} in Network Map Service")
 
-        val amount = Amount(params.amount, currency(params.currency))
-        val issuerToPartyRef = OpaqueBytes.of(params.issueToPartyRefAsString.toByte())
+            val amount = Amount(params.amount, currency(params.currency))
+            val issuerToPartyRef = OpaqueBytes.of(params.issueToPartyRefAsString.toByte())
 
-        return proxy.startFlow(::IssuanceRequester, amount, issueToParty, issuerToPartyRef, issuerBankParty).returnValue.getOrThrow()
+            return proxy.startFlow(::IssuanceRequester, amount, issueToParty, issuerToPartyRef, issuerBankParty).returnValue.getOrThrow()
+        }
     }
 }

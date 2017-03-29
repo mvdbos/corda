@@ -1,5 +1,6 @@
 package net.corda.node
 
+import net.corda.client.rpc.start
 import net.corda.core.flows.FlowLogic
 import net.corda.core.getOrThrow
 import net.corda.core.messaging.startFlow
@@ -17,9 +18,8 @@ class BootTests {
     fun `java deserialization is disabled`() {
         driver {
             val user = User("u", "p", setOf(startFlowPermission<ObjectInputStreamFlow>()))
-            val future = startNode(rpcUsers = listOf(user)).getOrThrow().rpcClientToNode().apply {
-                start(user.username, user.password)
-            }.proxy().startFlow(::ObjectInputStreamFlow).returnValue
+            val future = startNode(rpcUsers = listOf(user)).getOrThrow().rpcClientToNode().
+                start(user.username, user.password).proxy.startFlow(::ObjectInputStreamFlow).returnValue
             assertThatThrownBy { future.getOrThrow() }.isInstanceOf(InvalidClassException::class.java).hasMessage("filter status: REJECTED")
         }
     }

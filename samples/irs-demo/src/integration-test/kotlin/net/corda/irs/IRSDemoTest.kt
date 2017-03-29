@@ -3,6 +3,7 @@ package net.corda.irs
 import com.google.common.net.HostAndPort
 import com.google.common.util.concurrent.Futures
 import net.corda.client.rpc.CordaRPCClient
+import net.corda.client.rpc.start
 import net.corda.core.getOrThrow
 import net.corda.core.node.services.ServiceInfo
 import net.corda.core.utilities.DUMMY_BANK_A
@@ -66,8 +67,7 @@ class IRSDemoTest : IntegrationTestCategory {
 
     fun getFixingDateObservable(config: FullNodeConfiguration): BlockingObservable<LocalDate?> {
         val client = CordaRPCClient(config.rpcAddress!!)
-        client.start("user", "password")
-        val proxy = client.proxy()
+        val proxy = client.start("user", "password").proxy
         val vaultUpdates = proxy.vaultAndUpdates().second
 
         val fixingDates = vaultUpdates.map { update ->

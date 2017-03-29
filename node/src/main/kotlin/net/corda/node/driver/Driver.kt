@@ -7,6 +7,7 @@ import com.google.common.util.concurrent.*
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigRenderOptions
 import net.corda.client.rpc.CordaRPCClient
+import net.corda.client.rpc.start
 import net.corda.core.ThreadBox
 import net.corda.core.crypto.Party
 import net.corda.core.div
@@ -105,6 +106,8 @@ interface DriverDSLExposedInterface {
     fun startNetworkMapService()
 
     fun waitForAllNodesToFinish()
+
+    val shutdownManager: ShutdownManager
 }
 
 interface DriverDSLInternalInterface : DriverDSLExposedInterface {
@@ -211,15 +214,13 @@ fun <DI : DriverDSLExposedInterface, D : DriverDSLInternalInterface, A> genericD
     var shutdownHook: Thread? = null
     try {
         driverDsl.start()
-        val returnValue = dsl(coerce(driverDsl))
         shutdownHook = Thread({
             driverDsl.shutdown()
         })
         Runtime.getRuntime().addShutdownHook(shutdownHook)
-        return returnValue
+        return dsl(coerce(driverDsl))
     } catch (exception: Throwable) {
-        println("Driver shutting down because of exception $exception")
-        exception.printStackTrace()
+        log.error("Driver shutting down because of exception", exception)
         throw exception
     } finally {
         driverDsl.shutdown()
@@ -321,7 +322,13 @@ class ShutdownManager(private val executorService: ExecutorService) {
             /** Could not get all of them, collect what we have */
             shutdownFutures.filter { it.isDone }.map { it.get() }
         }
-        shutdowns.reversed().forEach { it() }
+        shutdowns.reversed().forEach { shutdown ->
+            try {
+                shutdown()
+            } catch (throwable: Throwable) {
+                log.error("Exception while shutting down", throwable)
+            }
+        }
     }
 
     fun registerShutdown(shutdown: ListenableFuture<() -> Unit>) {
@@ -330,6 +337,7 @@ class ShutdownManager(private val executorService: ExecutorService) {
             registeredShutdowns.add(shutdown)
         }
     }
+    fun registerShutdown(shutdown: () -> Unit) = registerShutdown(Futures.immediateFuture(shutdown))
 
     fun registerProcessShutdown(processFuture: ListenableFuture<Process>) {
         val processShutdown = processFuture.map { process ->
@@ -363,8 +371,10 @@ class DriverDSL(
 ) : DriverDSLInternalInterface {
     private val networkMapLegalName = DUMMY_MAP.name
     private val networkMapAddress = portAllocation.nextHostAndPort()
-    val executorService: ListeningScheduledExecutorService = MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(2))
-    val shutdownManager = ShutdownManager(executorService)
+    val executorService: ListeningScheduledExecutorService = MoreExecutors.listeningDecorator(
+            Executors.newScheduledThreadPool(2, ThreadFactoryBuilder().setNameFormat("driver-pool-thread-%d").build())
+    )
+    override val shutdownManager = ShutdownManager(executorService)
 
     class State {
         val processes = ArrayList<ListenableFuture<Process>>()
@@ -396,9 +406,6 @@ class DriverDSL(
 
     override fun shutdown() {
         shutdownManager.shutdown()
-
-        // Check that we shut down properly
-        addressMustNotBeBound(executorService, networkMapAddress).get()
         executorService.shutdown()
     }
 
@@ -406,8 +413,9 @@ class DriverDSL(
         val client = CordaRPCClient(nodeAddress, sslConfig)
         return poll(executorService, "for RPC connection") {
             try {
-                client.start(ArtemisMessagingComponent.NODE_USER, ArtemisMessagingComponent.NODE_USER)
-                return@poll client.proxy()
+                val connection = client.start(ArtemisMessagingComponent.NODE_USER, ArtemisMessagingComponent.NODE_USER)
+                shutdownManager.registerShutdown { connection.close() }
+                return@poll connection.proxy
             } catch(e: Exception) {
                 log.error("Exception $e, Retrying RPC connection at $nodeAddress")
                 null
