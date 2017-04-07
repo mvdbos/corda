@@ -166,7 +166,7 @@ class NodeConfigTest {
                 services = listOf("my.service"),
                 users = listOf(user("jenny"))
         )
-        config.networkMap = NetworkMapConfig(X500Name(DUMMY_NOTARY.name), 12345)
+        config.networkMap = NetworkMapConfig(DUMMY_NOTARY.name, 12345)
 
         val expected = ("{"
                 + "\"extraAdvertisedServiceIds\":[\"my.service\"],"
@@ -196,7 +196,7 @@ class NodeConfigTest {
                 services = listOf("my.service"),
                 users = listOf(user("jenny"))
         )
-        config.networkMap = NetworkMapConfig(X500Name(DUMMY_NOTARY.name), 12345)
+        config.networkMap = NetworkMapConfig(DUMMY_NOTARY.name, 12345)
 
         val nodeConfig = config.toFileConfig()
                 .withValue("basedir", ConfigValueFactory.fromAnyRef(baseDir.toString()))
@@ -205,7 +205,6 @@ class NodeConfigTest {
         val fullConfig = nodeConfig.parseAs<FullNodeConfiguration>()
 
         assertEquals(myLegalName, fullConfig.myLegalName)
-        assertEquals("London", fullConfig.nearestCity)
         assertEquals(localPort(40002), fullConfig.rpcAddress)
         assertEquals(localPort(10001), fullConfig.p2pAddress)
         assertEquals(listOf("my.service"), fullConfig.extraAdvertisedServiceIds)
@@ -226,7 +225,7 @@ class NodeConfigTest {
                 services = listOf("my.service"),
                 users = listOf(user("jenny"))
         )
-        config.networkMap = NetworkMapConfig(X500Name(DUMMY_NOTARY.name), 12345)
+        config.networkMap = NetworkMapConfig(DUMMY_NOTARY.name, 12345)
 
         val nodeConfig = config.toFileConfig()
                 .withValue("basedir", ConfigValueFactory.fromAnyRef(baseDir.toString()))

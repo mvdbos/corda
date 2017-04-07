@@ -46,7 +46,7 @@ abstract class AbstractNetworkMapServiceTest<out S : AbstractNetworkMapService> 
     lateinit var alice: MockNode
 
     companion object {
-        val subscriberLegalName = "CN=Subscriber,OU=Corda QA Department,O=R3 CEV,L=New York,C=US"
+        val subscriberLegalName = X500Name("CN=Subscriber,OU=Corda QA Department,O=R3 CEV,L=New York,C=US")
     }
 
     @Before
@@ -249,14 +249,14 @@ abstract class AbstractNetworkMapServiceTest<out S : AbstractNetworkMapService> 
         network.runNetwork()
     }
 
-    private fun addNewNodeToNetworkMap(legalName: String): MockNode {
+    private fun addNewNodeToNetworkMap(legalName: X500Name): MockNode {
         val node = network.createNode(networkMapAddress = mapServiceNode.info.address, legalName = legalName)
         network.runNetwork()
         lastSerial = System.currentTimeMillis()
         return node
     }
 
-    private fun newNodeSeparateFromNetworkMap(legalName: String): MockNode {
+    private fun newNodeSeparateFromNetworkMap(legalName: X500Name): MockNode {
         return network.createNode(legalName = legalName, nodeFactory = NoNMSNodeFactory)
     }
 

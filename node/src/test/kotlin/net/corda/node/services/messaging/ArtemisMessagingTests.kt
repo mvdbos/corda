@@ -76,7 +76,7 @@ class ArtemisMessagingTests {
         userService = RPCUserServiceImpl(emptyList())
         config = TestNodeConfiguration(
                 baseDirectory = baseDirectory,
-                myLegalName = X500Name(ALICE.name),
+                myLegalName = ALICE.name,
                 networkMapService = null)
         LogHelper.setLevel(PersistentUniquenessProvider::class)
         val dataSourceAndDatabase = configureDatabase(makeTestDataSourceProperties())

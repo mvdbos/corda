@@ -107,7 +107,7 @@ interface DriverDSLExposedInterface {
      * @return The [Party] identity of the distributed notary service, and the [NodeInfo]s of the notaries in the cluster.
      */
     fun startNotaryCluster(
-            notaryName: String,
+            notaryName: X500Name,
             clusterSize: Int = 3,
             type: ServiceType = RaftValidatingNotaryService.type,
             verifierType: VerifierType = VerifierType.InMemory,
@@ -463,7 +463,7 @@ class DriverDSL(
                 "extraAdvertisedServiceIds" to advertisedServices.map { it.toString() },
                 "networkMapService" to mapOf(
                         "address" to networkMapAddress.toString(),
-                        "legalName" to networkMapLegalName
+                        "legalName" to networkMapLegalName.toString()
                 ),
                 "useTestClock" to useTestClock,
                 "rpcUsers" to rpcUsers.map {
@@ -495,14 +495,24 @@ class DriverDSL(
     }
 
     override fun startNotaryCluster(
-            notaryName: String,
+            notaryName: X500Name,
             clusterSize: Int,
             type: ServiceType,
             verifierType: VerifierType,
             rpcUsers: List<User>
     ): ListenableFuture<Pair<Party, List<NodeHandle>>> {
-        val nodeNames = (1..clusterSize).map { "${DUMMY_NOTARY.name} $it" }
-        val paths = nodeNames.map { driverDirectory / it }
+        val nodeNames = (1..clusterSize).map {
+            val nameBuilder = X500NameBuilder(BCStyle.INSTANCE)
+            nameBuilder.addRDN(BCStyle.CN, "${DUMMY_NOTARY.name.commonName} $it")
+            DUMMY_NOTARY.name.rdNs.forEach { rdn ->
+                if (!rdn.isMultiValued &&
+                    rdn.first.type != BCStyle.CN) {
+                    nameBuilder.addRDN(rdn.first)
+                }
+            }
+            nameBuilder.build()
+        }
+        val paths = nodeNames.map { driverDirectory / it.commonName }
         ServiceIdentityGenerator.generateToDisk(paths, type.id, notaryName)
 
         val serviceInfo = ServiceInfo(type, notaryName)
@@ -559,12 +569,12 @@ class DriverDSL(
     override fun startNetworkMapService() {
         val debugPort = if (isDebug) debugPortAllocation.nextPort() else null
         val apiAddress = portAllocation.nextHostAndPort().toString()
-        val baseDirectory = driverDirectory / networkMapLegalName
+        val baseDirectory = driverDirectory / networkMapLegalName.commonName
         val config = ConfigHelper.loadConfig(
                 baseDirectory = baseDirectory,
                 allowMissingConfig = true,
                 configOverrides = mapOf(
-                        "myLegalName" to networkMapLegalName,
+                        "myLegalName" to networkMapLegalName.toString(),
                         // TODO: remove the webAddress as NMS doesn't need to run a web server. This will cause all
                         //       node port numbers to be shifted, so all demos and docs need to be updated accordingly.
                         "webAddress" to apiAddress,
@@ -580,9 +590,9 @@ class DriverDSL(
 
     companion object {
         val name = arrayOf(
-                X500Name(ALICE.name),
-                X500Name(BOB.name),
-                X500Name(DUMMY_BANK_A.name)
+                ALICE.name,
+                BOB.name,
+                DUMMY_BANK_A.name
         )
 
         fun <A> pickA(array: Array<A>): A = array[Math.abs(Random().nextInt()) % array.size]

@@ -3,6 +3,7 @@ package net.corda.testing.node
 import com.codahale.metrics.MetricRegistry
 import com.google.common.net.HostAndPort
 import com.google.common.util.concurrent.SettableFuture
+import net.corda.core.crypto.commonName
 import net.corda.core.crypto.generateKeyPair
 import net.corda.core.messaging.RPCOps
 import net.corda.testing.MOCK_VERSION_INFO
@@ -54,7 +55,7 @@ class SimpleNode(val config: NodeConfiguration, val address: HostAndPort = freeL
                     override val protocolVersion = 0
                 },
                 userService)
-        thread(name = config.myLegalName.toString()) {
+        thread(name = config.myLegalName.commonName) {
             net.run()
         }
     }

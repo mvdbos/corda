@@ -75,7 +75,7 @@ class StateMachineManagerTests {
         node1 = nodes.first
         node2 = nodes.second
         val notaryKeyPair = generateKeyPair()
-        val notaryService = ServiceInfo(ValidatingNotaryService.type, "CN=notary-service-2000,O=R3,OU=corda,L=London,C=UK")
+        val notaryService = ServiceInfo(ValidatingNotaryService.type, X500Name("CN=notary-service-2000,O=R3,OU=corda,L=London,C=UK"))
         val overrideServices = mapOf(Pair(notaryService, notaryKeyPair))
         // Note that these notaries don't operate correctly as they don't share their state. They are only used for testing
         // service addressing.
