@@ -65,7 +65,7 @@ open class MockServices(val key: KeyPair = generateKeyPair()) : ServiceHub {
     override val networkMapCache: NetworkMapCache get() = throw UnsupportedOperationException()
     override val clock: Clock get() = Clock.systemUTC()
     override val schedulerService: SchedulerService get() = throw UnsupportedOperationException()
-    override val myInfo: NodeInfo get() = NodeInfo(object : SingleMessageRecipient {}, Party("MegaCorp", key.public), MOCK_VERSION_INFO.platformVersion)
+    override val myInfo: NodeInfo get() = NodeInfo(object : SingleMessageRecipient {}, Party(MEGA_CORP.name, key.public), MOCK_VERSION_INFO.platformVersion)
     override val transactionVerifierService: TransactionVerifierService get() = InMemoryTransactionVerifierService(2)
 
     fun makeVaultService(dataSourceProps: Properties): VaultService {
@@ -80,7 +80,7 @@ open class MockServices(val key: KeyPair = generateKeyPair()) : ServiceHub {
 class MockIdentityService(val identities: List<Party>) : IdentityService, SingletonSerializeAsToken() {
     private val keyToParties: Map<PublicKey, Party>
         get() = synchronized(identities) { identities.associateBy { it.owningKey } }
-    private val nameToParties: Map<String, Party>
+    private val nameToParties: Map<X500Name, Party>
         get() = synchronized(identities) { identities.associateBy { it.name } }
 
     override fun registerIdentity(party: Party) {
@@ -91,8 +91,8 @@ class MockIdentityService(val identities: List<Party>) : IdentityService, Single
     override fun partyFromAnonymous(party: AnonymousParty): Party? = keyToParties[party.owningKey]
     override fun partyFromAnonymous(partyRef: PartyAndReference): Party? = partyFromAnonymous(partyRef.party)
     override fun partyFromKey(key: PublicKey): Party? = keyToParties[key]
-    override fun partyFromName(name: String): Party? = nameToParties[name]
-    override fun partyFromX500Name(principal: X500Name): Party? = nameToParties[principal.toString()]
+    override fun partyFromName(name: String): Party? = nameToParties[X500Name(name)]
+    override fun partyFromX500Name(principal: X500Name): Party? = nameToParties[principal]
 }
 
 
@@ -180,7 +180,8 @@ class MockStorageService(override val attachments: AttachmentStorage = MockAttac
  *
  * @param nodeName Reflects the "instance" of the in-memory database.  Defaults to a random string.
  */
-fun makeTestDataSourceProperties(nodeName: String = SecureHash.randomSHA256().toString()): Properties {
+// TODO: Can we use an X509 principal generator here?
+fun makeTestDataSourceProperties(nodeName: X500Name = X509Utilities.getDevX509Name(SecureHash.randomSHA256().toString())): Properties {
     val props = Properties()
     props.setProperty("dataSourceClassName", "org.h2.jdbcx.JdbcDataSource")
     props.setProperty("dataSource.url", "jdbc:h2:mem:${nodeName}_persistence;LOCK_TIMEOUT=10000;DB_CLOSE_ON_EXIT=FALSE")
