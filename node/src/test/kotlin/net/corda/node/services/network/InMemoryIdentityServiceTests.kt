@@ -67,7 +67,6 @@ class InMemoryIdentityServiceTests {
         val service = InMemoryIdentityService()
         val identityCertAndKey = X509Utilities.createSelfSignedCACert(ALICE.name)
         val identityKey = identityCertAndKey.keyPair
-        val identityCertificate = identityCertAndKey.certificate
         val identity = Party(ALICE.name, identityKey.public)
 
         val txCertAndKey = X509Utilities.createIntermediateCert(ALICE.name, identityCertAndKey)
@@ -75,7 +74,7 @@ class InMemoryIdentityServiceTests {
         val txCertificate = txCertAndKey.certificate
 
         val certPathFactory = CertificateFactory.getInstance("X.509")
-        val txCertPath: CertPath = certPathFactory.generateCertPath(listOf(identityCertificate))
+        val txCertPath: CertPath = certPathFactory.generateCertPath(listOf(txCertificate))
         service.registerPath(identity, txIdentity, txCertPath)
         service.assertOwnership(identity, txIdentity)
     }
