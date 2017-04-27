@@ -101,6 +101,32 @@ class X509UtilitiesTest {
     }
 
     @Test
+    fun `signing EdDSA key with EcDSA certificate`() {
+        val tmpKeyStore = tempFile("keystore.jks")
+        val ecDSACert = X509Utilities.createSelfSignedCACert(X500Name("CN=Test"))
+        val edDSAKeypair = Crypto.generateKeyPair("EDDSA_ED25519_SHA512")
+        val edDSACert = X509Utilities.createServerCert(X500Name("CN=TestEdDSA"),edDSAKeypair.public, ecDSACert, listOf("alias name"), listOf("10.0.0.54"))
+
+        // Save the EdDSA private key with cert chains.
+        val keyStore = X509Utilities.loadOrCreateKeyStore(tmpKeyStore, "keystorepass")
+        keyStore.setKeyEntry("Key", edDSAKeypair.private, "password".toCharArray(), arrayOf(ecDSACert.certificate, edDSACert))
+        X509Utilities.saveKeyStore(keyStore, tmpKeyStore, "keystorepass")
+
+        // Load the keystore from file and make sure keys are intact.
+        val keyStore2 = X509Utilities.loadOrCreateKeyStore(tmpKeyStore, "keystorepass")
+        val privateKey = keyStore2.getKey("Key", "password".toCharArray())
+        val certs = keyStore2.getCertificateChain("Key")
+
+        val pubKey = certs.last().publicKey
+
+        assertEquals(2, certs.size)
+        assertNotNull(pubKey)
+        assertNotNull(privateKey)
+        assertEquals(edDSAKeypair.public, pubKey)
+        assertEquals(edDSAKeypair.private, privateKey)
+    }
+
+    @Test
     fun `create full CA keystore`() {
         val tmpKeyStore = tempFile("keystore.jks")
         val tmpTrustStore = tempFile("truststore.jks")
