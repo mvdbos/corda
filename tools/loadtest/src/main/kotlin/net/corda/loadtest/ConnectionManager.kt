@@ -7,7 +7,7 @@ import com.jcraft.jsch.agentproxy.connector.SSHAgentConnector
 import com.jcraft.jsch.agentproxy.usocket.JNAUSocketFactory
 import net.corda.client.rpc.CordaRPCClient
 import net.corda.client.rpc.CordaRPCConnection
-import net.corda.client.rpc.start
+import net.corda.client.rpc.internal.start
 import net.corda.core.messaging.CordaRPCOps
 import net.corda.node.driver.PortAllocation
 import org.slf4j.LoggerFactory

@@ -25,7 +25,6 @@ import net.corda.node.services.api.ServiceHubInternal
 import net.corda.node.utilities.StrandLocalTransactionManager
 import net.corda.node.utilities.createTransaction
 import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.div
 import org.jetbrains.exposed.sql.Transaction
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.slf4j.Logger

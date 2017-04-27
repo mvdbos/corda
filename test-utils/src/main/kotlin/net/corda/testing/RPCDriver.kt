@@ -6,8 +6,8 @@ import net.corda.client.mock.Generator
 import net.corda.client.mock.generateOrFail
 import net.corda.client.mock.int
 import net.corda.client.mock.string
-import net.corda.client.rpc.RPCClient
-import net.corda.client.rpc.RPCClientConfiguration
+import net.corda.client.rpc.internal.RPCClient
+import net.corda.client.rpc.internal.RPCClientConfiguration
 import net.corda.core.div
 import net.corda.core.messaging.RPCOps
 import net.corda.core.utilities.ProcessUtilities
@@ -41,8 +41,6 @@ import java.lang.reflect.Method
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.*
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import javax.security.cert.X509Certificate
 
 interface RPCDriverExposedDSLInterface : DriverDSLExposedInterface {

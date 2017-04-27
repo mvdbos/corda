@@ -1,6 +1,6 @@
 package net.corda.node.services
 
-import net.corda.client.rpc.start
+import net.corda.client.rpc.internal.start
 import net.corda.core.bufferUntilSubscribed
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.POUNDS

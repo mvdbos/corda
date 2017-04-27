@@ -14,7 +14,7 @@ import net.corda.client.jfx.model.observableValue
 import net.corda.client.mock.EventGenerator
 import net.corda.client.mock.Generator
 import net.corda.client.mock.pickOne
-import net.corda.client.rpc.start
+import net.corda.client.rpc.internal.start
 import net.corda.contracts.asset.Cash
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.GBP

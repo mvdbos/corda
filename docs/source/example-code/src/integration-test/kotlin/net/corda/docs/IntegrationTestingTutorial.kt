@@ -2,7 +2,7 @@ package net.corda.docs
 
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import net.corda.client.rpc.start
+import net.corda.client.rpc.internal.start
 import net.corda.contracts.asset.Cash
 import net.corda.core.contracts.DOLLARS
 import net.corda.core.getOrThrow

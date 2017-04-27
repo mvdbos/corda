@@ -211,7 +211,6 @@ class Node(override val configuration: FullNodeConfiguration,
                         "-key", "node", databaseName)
                 runOnStop += Runnable { server.stop() }
                 val url = server.start().url
-                runOnStop += Runnable { server.stop() }
                 printBasicNodeInfo("Database connection url is", "jdbc:h2:$url/node")
             }
         }

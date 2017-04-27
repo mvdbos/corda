@@ -1,4 +1,4 @@
-package net.corda.client.rpc
+package net.corda.client.rpc.internal
 
 import com.esotericsoftware.kryo.Kryo
 import com.esotericsoftware.kryo.Serializer
@@ -14,7 +14,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder
 import net.corda.core.ThreadBox
 import net.corda.core.getOrThrow
 import net.corda.core.messaging.RPCOps
-import net.corda.core.pinInSubscriptions
 import net.corda.core.random63BitValue
 import net.corda.core.serialization.KryoPoolWithContext
 import net.corda.core.utilities.*
@@ -26,6 +25,7 @@ import org.apache.activemq.artemis.api.core.client.ServerLocator
 import rx.Notification
 import rx.Observable
 import rx.subjects.UnicastSubject
+import sun.reflect.CallerSensitive
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Method
 import java.util.*
@@ -33,14 +33,15 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.collections.ArrayList
-import kotlin.reflect.jvm.javaGetter
+import kotlin.reflect.jvm.javaMethod
 
 /**
  * This class provides a proxy implementation of an RPC interface for RPC clients. It translates API calls to lower-level
  * RPC protocol messages. For this protocol see [RPCApi].
  *
- * When a method is called on the interface the arguments are serialised and the request is forwarded to the node. The
+ * When a method is called on the interface the arguments are serialised and the request is forwarded to the server. The
  * server then executes the code that implements the RPC and sends a reply.
  *
  * An RPC reply may contain [Observable]s, which are serialised simply as unique IDs. On the client side we create a
@@ -59,12 +60,13 @@ import kotlin.reflect.jvm.javaGetter
  * automatically signal the server. This is done using a cache that holds weak references to the [UnicastSubject]s.
  * The cleanup happens in batches using a dedicated reaper, scheduled on [reaperExecutor].
  */
-internal class RPCClientProxyHandler(
+class RPCClientProxyHandler(
         private val rpcConfiguration: RPCClientConfiguration,
         private val rpcUsername: String,
         private val rpcPassword: String,
         private val serverLocator: ServerLocator,
-        private val clientAddress: SimpleString
+        private val clientAddress: SimpleString,
+        private val rpcOpsClass: Class<out RPCOps>
 ) : InvocationHandler {
 
     private enum class State {
@@ -80,6 +82,8 @@ internal class RPCClientProxyHandler(
         // Note that this KryoPool is not yet capable of deserialising Observables, it requires Proxy-specific context
         // to do that. However it may still be used for serialisation of RPC requests and related messages.
         val kryoPool = KryoPool.Builder { RPCKryo(RpcClientObservableSerializer) }.build()
+        // To check whether toString() is being invoked
+        val toStringMethod: Method = Object::toString.javaMethod!!
     }
 
     // Used for reaping
@@ -95,9 +99,11 @@ internal class RPCClientProxyHandler(
     }
 
     // Holds the RPC reply futures.
-    private val rpcReplyMap = ConcurrentHashMap<RPCApi.RpcRequestId, SettableFuture<Any?>>()
+    private val rpcReplyMap = RpcReplyMap()
+    private val callSiteMap = if (rpcConfiguration.trackRpcCallSites) CallSiteMap() else null
     // Holds the Observables and a reference store to keep Observables alive when subscribed to.
     private val observableContext = ObservableContext(
+            callSiteMap = callSiteMap,
             observableMap = createRpcObservableMap(),
             hardReferenceStore = Collections.synchronizedSet(mutableSetOf<Observable<*>>())
     )
@@ -115,8 +121,15 @@ internal class RPCClientProxyHandler(
 
     private fun createRpcObservableMap(): RpcObservableMap {
         val onObservableRemove = RemovalListener<RPCApi.ObservableId, UnicastSubject<Notification<Any>>> {
+            val rpcCallSite = callSiteMap?.remove(it.key.toLong)
             if (it.cause == RemovalCause.COLLECTED) {
-                log.warn("Observable was never subscribed to, scheduling for reaping")
+                log.warn(listOf(
+                        "A hot observable returned from an RPC was never subscribed to.",
+                        "This wastes server-side resources because it was queueing observations for retrieval.",
+                        "It is being closed now, but please adjust your code to call .notUsed() on the observable",
+                        "to close it explicitly. (Java users: subscribe to it then unsubscribe). This warning",
+                        "will appear less frequently in future versions of the platform and you can ignore it",
+                        "if you want to.").joinToString(" "), rpcCallSite)
             }
             observablesToReap.locked { observables.add(it.key) }
         }
@@ -167,59 +180,84 @@ internal class RPCClientProxyHandler(
     }
 
     // This is the general function that transforms a client side RPC to internal Artemis messages.
+    @CallerSensitive
     override fun invoke(proxy: Any, method: Method, arguments: Array<out Any?>?): Any? {
+        lifeCycle.requireState { it == State.STARTED || it == State.SERVER_VERSION_NOT_SET }
         checkProtocolVersion(method)
-        val rpcId = RPCApi.RpcRequestId(random63BitValue())
-        val request = RPCApi.ClientToServer.RpcRequest(clientAddress, rpcId, method.name, arguments?.toList() ?: emptyList())
-        val replyFuture = SettableFuture.create<Any>()
-        sessionAndProducerPool.run {
-            val message = it.session.createMessage(false)
-            request.writeToClientMessage(kryoPool, message)
-            log.debug { "Sending RPC request ${method.name} with id $rpcId" }
-            require(rpcReplyMap.put(rpcId, replyFuture) == null) {
-                "Generated several RPC requests with same ID $rpcId"
-            }
-            it.producer.send(message)
+        if (method == toStringMethod) {
+            return "Client RPC proxy for $rpcOpsClass"
         }
-        return replyFuture.getOrThrow()
+        if (sessionAndConsumer.session.isClosed) {
+            throw RPCException("RPC Proxy is closed")
+        }
+        val rpcId = RPCApi.RpcRequestId(random63BitValue())
+        callSiteMap?.set(rpcId.toLong, Throwable("<Call site of root RPC '${method.name}'>"))
+        try {
+            val request = RPCApi.ClientToServer.RpcRequest(clientAddress, rpcId, method.name, arguments?.toList() ?: emptyList())
+            val replyFuture = SettableFuture.create<Any>()
+            sessionAndProducerPool.run {
+                val message = it.session.createMessage(false)
+                request.writeToClientMessage(kryoPool, message)
+                log.debug { "Sending RPC request ${method.name} with id $rpcId" }
+
+                require(rpcReplyMap.put(rpcId, replyFuture) == null) {
+                    "Generated several RPC requests with same ID $rpcId"
+                }
+                it.producer.send(message)
+            }
+            return replyFuture.getOrThrow()
+        } finally {
+            callSiteMap?.remove(rpcId.toLong)
+        }
     }
 
     // The handler for Artemis messages.
     private fun artemisMessageHandler(message: ClientMessage) {
-        message.acknowledge()
         val serverToClient = RPCApi.ServerToClient.fromClientMessage(kryoPoolWithObservableContext, message)
         log.debug { "Got message from RPC server $serverToClient" }
-        serverToClient.accept(
-                onRpcReply = {
-                    val replyFuture = rpcReplyMap.remove(it.id)
-                    if (replyFuture == null) {
-                        log.error("RPC reply arrived to unknown RPC ID ${it.id}, this indicates an internal RPC error.")
-                        return@accept
-                    }
-                    it.result.match(
-                            onError = { replyFuture.setException(it) },
+        when (serverToClient) {
+            is RPCApi.ServerToClient.RpcReply -> {
+                val replyFuture = rpcReplyMap.remove(serverToClient.id)
+                if (replyFuture == null) {
+                    log.error("RPC reply arrived to unknown RPC ID ${serverToClient.id}, this indicates an internal RPC error.")
+                } else {
+                    val rpcCallSite = callSiteMap?.get(serverToClient.id.toLong)
+
+                    serverToClient.result.match(
+                            onError = {
+                                if (rpcCallSite != null) addRpcCallSiteToThrowable(it, rpcCallSite)
+                                replyFuture.setException(it)
+                            },
                             onValue = { replyFuture.set(it) }
                     )
-                },
-                onObservation = {
-                    val observable = observableContext.observableMap.getIfPresent(it.id)
-                    if (observable == null) {
-                        log.warn("Observation ${it.content} arrived to unknown Observable with ID ${it.id}. " +
-                                "This may be due to an observation arriving before the server was " +
-                                "notified of observable shutdown")
-                        return@accept
-                    }
+                }
+            }
+            is RPCApi.ServerToClient.Observation -> {
+                val observable = observableContext.observableMap.getIfPresent(serverToClient.id)
+                if (observable == null) {
+                    log.debug("Observation ${serverToClient.content} arrived to unknown Observable with ID ${serverToClient.id}. " +
+                            "This may be due to an observation arriving before the server was " +
+                            "notified of observable shutdown")
+                } else {
                     // We schedule the onNext() on an executor sticky-pooled based on the Observable ID.
-                    observationExecutorPool.run(it.id) { executor ->
+                    observationExecutorPool.run(serverToClient.id) { executor ->
                         executor.submit {
-                            observable.onNext(it.content)
-                            if (it.content.isOnCompleted || it.content.isOnError) {
-                                observableContext.observableMap.invalidate(it.id)
+                            val content = serverToClient.content
+                            if (content.isOnCompleted || content.isOnError) {
+                                observableContext.observableMap.invalidate(serverToClient.id)
                             }
+                            // Add call site information on error
+                            if (content.isOnError) {
+                                val rpcCallSite = callSiteMap?.get(serverToClient.id.toLong)
+                                if (rpcCallSite != null) addRpcCallSiteToThrowable(content.throwable, rpcCallSite)
+                            }
+                            observable.onNext(content)
                         }
                     }
                 }
-        )
+            }
+        }
+        message.acknowledge()
     }
 
     /**
@@ -227,6 +265,9 @@ internal class RPCClientProxyHandler(
      */
     fun close() {
         lifeCycle.transition(State.STARTED, State.FINISHED)
+        sessionAndConsumer.consumer.close()
+        sessionAndConsumer.session.close()
+        sessionAndConsumer.sessionFactory.close()
         reaperScheduledFuture.cancel(false)
         observableContext.observableMap.invalidateAll()
         reapObservables()
@@ -236,9 +277,6 @@ internal class RPCClientProxyHandler(
             it.session.close()
             it.sessionFactory.close()
         }
-        sessionAndConsumer.consumer.close()
-        sessionAndConsumer.session.close()
-        sessionAndConsumer.sessionFactory.close()
         // Note the ordering is important, we shut down the consumer *before* the observation executor, otherwise we may
         // leak borrowed executors.
         val observationExecutors = observationExecutorPool.close()
@@ -298,6 +336,8 @@ internal class RPCClientProxyHandler(
 }
 
 private typealias RpcObservableMap = Cache<RPCApi.ObservableId, UnicastSubject<Notification<Any>>>
+private typealias RpcReplyMap = ConcurrentHashMap<RPCApi.RpcRequestId, SettableFuture<Any?>>
+private typealias CallSiteMap = ConcurrentHashMap<Long, Throwable?>
 
 /**
  * Holds a context available during Kryo deserialisation of messages that are expected to contain Observables.
@@ -306,6 +346,7 @@ private typealias RpcObservableMap = Cache<RPCApi.ObservableId, UnicastSubject<N
  * @param hardReferenceStore holds references to Observables we want to keep alive while they are subscribed to.
  */
 private data class ObservableContext(
+        val callSiteMap: CallSiteMap?,
         val observableMap: RpcObservableMap,
         val hardReferenceStore: MutableSet<Observable<*>>
 )
@@ -327,10 +368,11 @@ private object RpcClientObservableSerializer : Serializer<Observable<Any>>() {
         require(observableContext.observableMap.getIfPresent(observableId) == null) {
             "Multiple Observables arrived with the same ID $observableId"
         }
+        val rpcCallSite = getRpcCallSite(kryo, observableContext)
         observableContext.observableMap.put(observableId, observable)
+        observableContext.callSiteMap?.put(observableId.toLong, rpcCallSite)
         // We pin all Observables into a hard reference store (rooted in the RPC proxy) on subscription so that users
         // don't need to store a reference to the Observables themselves.
-        // TODO Is this correct behaviour? It may result in unintended leaks in app code.
         return observable.pinInSubscriptions(observableContext.hardReferenceStore).doOnUnsubscribe {
             // This causes Future completions to give warnings because the corresponding OnComplete sent from the server
             // will arrive after the client unsubscribes from the observable and consequently invalidates the mapping.
@@ -341,5 +383,36 @@ private object RpcClientObservableSerializer : Serializer<Observable<Any>>() {
 
     override fun write(kryo: Kryo, output: Output, observable: Observable<Any>) {
         throw UnsupportedOperationException("Cannot serialise Observables on the client side")
+    }
+
+    private fun getRpcCallSite(kryo: Kryo, observableContext: ObservableContext): Throwable? {
+        val rpcRequestOrObservableId = kryo.context[RPCApi.RpcRequestOrObservableIdKey] as Long
+        return observableContext.callSiteMap?.get(rpcRequestOrObservableId)
+    }
+}
+
+private fun addRpcCallSiteToThrowable(throwable: Throwable, callSite: Throwable) {
+    var currentThrowable = throwable
+    while (true) {
+        val cause = currentThrowable.cause
+        if (cause == null) {
+            currentThrowable.initCause(callSite)
+            break
+        } else {
+            currentThrowable = cause
+        }
+    }
+}
+
+private fun <T> Observable<T>.pinInSubscriptions(hardReferenceStore: MutableSet<Observable<*>>): Observable<T> {
+    val refCount = AtomicInteger(0)
+    return this.doOnSubscribe {
+        if (refCount.getAndIncrement() == 0) {
+            require(hardReferenceStore.add(this)) { "Reference store already contained reference $this on add" }
+        }
+    }.doOnUnsubscribe {
+        if (refCount.decrementAndGet() == 0) {
+            require(hardReferenceStore.remove(this)) { "Reference store did not contain reference $this on remove" }
+        }
     }
 }

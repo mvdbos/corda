@@ -4,6 +4,7 @@ import com.codahale.metrics.Gauge
 import com.codahale.metrics.JmxReporter
 import com.codahale.metrics.MetricRegistry
 import com.google.common.base.Stopwatch
+import net.corda.client.rpc.internal.RPCClientConfiguration
 import net.corda.core.messaging.RPCOps
 import net.corda.node.driver.DriverDSL
 import net.corda.node.driver.DriverDSLExposedInterface
@@ -29,6 +30,10 @@ import kotlin.concurrent.withLock
 
 @RunWith(Parameterized::class)
 class RPCPerformanceTests : AbstractRPCTest() {
+    companion object {
+        @JvmStatic @Parameterized.Parameters(name = "Mode = {0}")
+        fun modes() = modes(RPCTestMode.Netty)
+    }
     private interface TestOps : RPCOps {
         fun simpleReply(input: ByteArray, sizeOfReply: Int): ByteArray
     }
@@ -75,7 +80,7 @@ class RPCPerformanceTests : AbstractRPCTest() {
             val averageIndividualMs: Double,
             val Mbps: Double
     )
-    @Ignore("Run this manually")
+//    @Ignore("Run this manually")
     @Test
     fun `measure Megabytes per second for simple RPCs`() {
         warmup()

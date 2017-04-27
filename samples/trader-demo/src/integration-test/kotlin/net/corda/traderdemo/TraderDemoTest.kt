@@ -2,7 +2,7 @@ package net.corda.traderdemo
 
 import com.google.common.util.concurrent.Futures
 import net.corda.client.rpc.CordaRPCClient
-import net.corda.client.rpc.start
+import net.corda.client.rpc.internal.start
 import net.corda.core.contracts.DOLLARS
 import net.corda.core.getOrThrow
 import net.corda.core.node.services.ServiceInfo

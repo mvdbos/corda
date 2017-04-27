@@ -1,7 +1,6 @@
 package net.corda.docs
 
 import net.corda.client.rpc.notUsed
-import net.corda.client.rpc.start
 import net.corda.contracts.asset.Cash
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.USD

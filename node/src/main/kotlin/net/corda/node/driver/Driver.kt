@@ -7,7 +7,6 @@ import com.google.common.util.concurrent.*
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigRenderOptions
 import net.corda.client.rpc.CordaRPCClient
-import net.corda.client.rpc.start
 import net.corda.core.ThreadBox
 import net.corda.core.crypto.Party
 import net.corda.core.div

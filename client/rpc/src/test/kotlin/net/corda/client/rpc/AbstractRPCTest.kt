@@ -1,5 +1,6 @@
 package net.corda.client.rpc
 
+import net.corda.client.rpc.internal.RPCClientConfiguration
 import net.corda.core.flatMap
 import net.corda.core.map
 import net.corda.core.messaging.RPCOps
@@ -20,9 +21,8 @@ open class AbstractRPCTest {
 
     companion object {
         @JvmStatic @Parameterized.Parameters(name = "Mode = {0}")
-        fun modes(): Collection<Array<out Any>> {
-            return listOf(RPCTestMode.Netty).map { arrayOf(it) }
-        }
+        fun defaultModes() = modes(RPCTestMode.InVm, RPCTestMode.Netty)
+        fun modes(vararg modes: RPCTestMode) = listOf(*modes).map { arrayOf(it) }
     }
     @Parameterized.Parameter
     lateinit var mode: RPCTestMode

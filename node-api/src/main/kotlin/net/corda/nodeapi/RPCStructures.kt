@@ -12,6 +12,8 @@ import net.corda.core.toObservable
 import net.corda.nodeapi.config.OldConfig
 import rx.Observable
 import java.io.InputStream
+import java.io.PrintWriter
+import java.io.StringWriter
 
 data class User(
         @OldConfig("user")

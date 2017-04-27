@@ -59,12 +59,12 @@ data class RPCServerConfiguration(
 }
 
 /**
- * The [RPCServer] implements the complement of [RpcClient]. When an RPC request arrives it dispatches to the
+ * The [RPCServer] implements the complement of [RPCClient]. When an RPC request arrives it dispatches to the
  * corresponding function in [ops]. During serialisation of the reply (and later observations) the server subscribes to
  * each Observable it encounters and captures the client address to associate with these Observables. Later it uses this
  * address to forward observations arriving on the Observables.
  *
- * The way this is done is similar to that in [RpcClient], we use Kryo and add a context to stores the subscription map.
+ * The way this is done is similar to that in [RPCClient], we use Kryo and add a context to stores the subscription map.
  */
 class RPCServer(
         private val ops: RPCOps,
@@ -156,52 +156,52 @@ class RPCServer(
     }
 
     private fun artemisMessageHandler(artemisMessage: ClientMessage) {
-        artemisMessage.acknowledge()
         val clientToServer = RPCApi.ClientToServer.fromClientMessage(kryoPool, artemisMessage)
         log.debug { "Got message from RPC client $clientToServer" }
-        clientToServer.accept(
-                onRpcRequest = { rpcRequest ->
-                    val rpcContext = RpcContext(
-                            currentUser = getUser(artemisMessage)
-                    )
-                    rpcExecutor.submit {
-                        val result = ErrorOr.catch {
-                            try {
-                                CURRENT_RPC_CONTEXT.set(rpcContext)
-                                log.debug { "Calling ${rpcRequest.methodName}" }
-                                val method = methodTable[rpcRequest.methodName] ?:
-                                        throw RPCException("Received RPC for unknown method ${rpcRequest.methodName} - possible client/server version skew?")
-                                method.invoke(ops, *rpcRequest.arguments.toTypedArray())
-                            } finally {
-                                CURRENT_RPC_CONTEXT.remove()
-                            }
+        when (clientToServer) {
+            is RPCApi.ClientToServer.RpcRequest -> {
+                val rpcContext = RpcContext(
+                        currentUser = getUser(artemisMessage)
+                )
+                rpcExecutor.submit {
+                    val result = ErrorOr.catch {
+                        try {
+                            CURRENT_RPC_CONTEXT.set(rpcContext)
+                            log.debug { "Calling ${clientToServer.methodName}" }
+                            val method = methodTable[clientToServer.methodName] ?:
+                                    throw RPCException("Received RPC for unknown method ${clientToServer.methodName} - possible client/server version skew?")
+                            method.invoke(ops, *clientToServer.arguments.toTypedArray())
+                        } finally {
+                            CURRENT_RPC_CONTEXT.remove()
                         }
-                        val resultWithExceptionUnwrapped = result.mapError {
-                            if (it is InvocationTargetException) {
-                                it.cause ?: RPCException("Caught InvocationTargetException without cause")
-                            } else {
-                                it
-                            }
-                        }
-                        val reply = RPCApi.ServerToClient.RpcReply(
-                                id = rpcRequest.id,
-                                result = resultWithExceptionUnwrapped
-                        )
-                        val observableContext = ObservableContext(
-                                rpcRequest.id,
-                                observableMap,
-                                rpcRequest.clientAddress,
-                                sessionAndProducerPool,
-                                observationSendExecutor,
-                                kryoPool
-                        )
-                        observableContext.sendMessage(reply)
                     }
-                },
-                onObservablesClosed = {
-                    observableMap.invalidateAll(it.ids)
+                    val resultWithExceptionUnwrapped = result.mapError {
+                        if (it is InvocationTargetException) {
+                            it.cause ?: RPCException("Caught InvocationTargetException without cause")
+                        } else {
+                            it
+                        }
+                    }
+                    val reply = RPCApi.ServerToClient.RpcReply(
+                            id = clientToServer.id,
+                            result = resultWithExceptionUnwrapped
+                    )
+                    val observableContext = ObservableContext(
+                            clientToServer.id,
+                            observableMap,
+                            clientToServer.clientAddress,
+                            sessionAndProducerPool,
+                            observationSendExecutor,
+                            kryoPool
+                    )
+                    observableContext.sendMessage(reply)
                 }
-        )
+            }
+            is RPCApi.ClientToServer.ObservablesClosed -> {
+                observableMap.invalidateAll(clientToServer.ids)
+            }
+        }
+        artemisMessage.acknowledge()
     }
 
     private fun reapSubscriptions() {

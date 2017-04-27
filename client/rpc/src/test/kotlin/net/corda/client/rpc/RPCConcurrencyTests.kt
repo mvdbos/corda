@@ -2,6 +2,7 @@ package net.corda.client.rpc
 
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import net.corda.client.rpc.internal.RPCClientConfiguration
 import net.corda.core.future
 import net.corda.core.messaging.RPCOps
 import net.corda.core.random63BitValue
@@ -30,6 +31,9 @@ import java.util.concurrent.atomic.AtomicInteger
 @RunWith(Parameterized::class)
 class RPCConcurrencyTests : AbstractRPCTest() {
 
+    /**
+     * Holds a "rose"-tree of [Observable]s which allows us to test arbitrary [Observable] nesting in RPC replies.
+     */
     @CordaSerializable
     data class ObservableRose<out A>(val value: A, val branches: Observable<out ObservableRose<A>>)
 
@@ -124,7 +128,7 @@ class RPCConcurrencyTests : AbstractRPCTest() {
                     done.countDown()
                 }
             }
-            // Down the latch that the other's are waiting for concurrently
+            // Down the latch that the others are waiting for concurrently
             (1 .. numberOfDownsRequired).toList().parallelStream().forEach {
                 proxy.ops.downLatch(id)
             }
@@ -150,11 +154,11 @@ class RPCConcurrencyTests : AbstractRPCTest() {
     @Test
     fun `nested immediate observables sequence correctly`() {
         rpcDriver {
+            // We construct a rose tree of immediate Observables and check that parent observations arrive before children.
             val proxy = testProxy()
             val treeDepth = 6
             val treeBranchingFactor = 3
             val remainingLatch = CountDownLatch((intPower(treeBranchingFactor, treeDepth + 1) - 1) / (treeBranchingFactor - 1))
-
             val depthsSeen = Collections.synchronizedSet(HashSet<Int>())
             fun ObservableRose<Int>.subscribeToAll() {
                 remainingLatch.countDown()
@@ -178,9 +182,16 @@ class RPCConcurrencyTests : AbstractRPCTest() {
             val treeDepth = 2
             val treeBranchingFactor = 10
             val remainingLatch = CountDownLatch((intPower(treeBranchingFactor, treeDepth + 1) - 1) / (treeBranchingFactor - 1))
+            val depthsSeen = Collections.synchronizedSet(HashSet<Int>())
             fun ObservableRose<Int>.subscribeToAll() {
                 remainingLatch.countDown()
-                branches.subscribe(ObservableRose<Int>::subscribeToAll)
+                branches.subscribe { tree ->
+                    (tree.value + 1 .. treeDepth - 1).forEach {
+                        require(it in depthsSeen) { "Got ${tree.value} before $it" }
+                    }
+                    depthsSeen.add(tree.value)
+                    tree.subscribeToAll()
+                }
             }
             proxy.ops.getParallelObservableTree(treeDepth, treeBranchingFactor).subscribeToAll()
             remainingLatch.await()

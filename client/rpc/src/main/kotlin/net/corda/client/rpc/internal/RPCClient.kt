@@ -1,32 +1,41 @@
-package net.corda.client.rpc
+package net.corda.client.rpc.internal
 
 import com.google.common.net.HostAndPort
-import net.corda.core.*
-import net.corda.core.messaging.CordaRPCOps
+import net.corda.core.logElapsedTime
 import net.corda.core.messaging.RPCOps
+import net.corda.core.minutes
+import net.corda.core.random63BitValue
+import net.corda.core.seconds
 import net.corda.core.utilities.loggerFor
 import net.corda.nodeapi.ArtemisTcpTransport.Companion.tcpTransport
 import net.corda.nodeapi.ConnectionDirection
-import net.corda.nodeapi.RPCException
 import net.corda.nodeapi.RPCApi
+import net.corda.nodeapi.RPCException
 import net.corda.nodeapi.config.SSLConfiguration
 import org.apache.activemq.artemis.api.core.SimpleString
 import org.apache.activemq.artemis.api.core.TransportConfiguration
 import org.apache.activemq.artemis.api.core.client.ActiveMQClient
 import java.io.Closeable
 import java.lang.reflect.Proxy
+import java.time.Duration
 
-typealias CordaRPCClient = RPCClient<CordaRPCOps>
-typealias CordaRPCConnection = RPCClient.RPCConnection<CordaRPCOps>
-fun CordaRPCClient.start(
-        username: String,
-        password: String
-) = start(CordaRPCOps::class.java, username, password)
-
+/**
+ * This configuration may be used to tweak the internals of the RPC client.
+ */
 data class RPCClientConfiguration(
         /** The minimum protocol version required from the server */
         val minimumServerProtocolVersion: Int,
-        /** The interval of unused observable reaping in milliseconds */
+        /**
+         * If set to true the client will track RPC call sites. If an error occurs subsequently during the RPC or in a
+         * returned Observable stream the stack trace of the originating RPC will be shown as well. Note that
+         * constructing call stacks is a moderately expensive operation.
+         */
+        val trackRpcCallSites: Boolean,
+        /**
+         * The interval of unused observable reaping in milliseconds. Leaked Observables (unused ones) are
+         * detected using weak references and are cleaned up in batches in this interval. If set too large it will waste
+         * server side resources for this duration. If set too low it wastes client side cycles.
+         */
         val reapIntervalMs: Long,
         /** The number of threads to use for observations (for executing [Observable.onNext]) */
         val observationExecutorPoolSize: Int,
@@ -39,24 +48,26 @@ data class RPCClientConfiguration(
          */
         val cacheConcurrencyLevel: Int,
         /** The retry interval of artemis connections in milliseconds */
-        val connectionRetryIntervalMs: Long,
+        val connectionRetryInterval: Duration,
         /** The retry interval multiplier for exponential backoff */
         val connectionRetryIntervalMultiplier: Double,
         /** Maximum retry interval */
-        val connectionMaxRetryIntervalMs: Long,
+        val connectionMaxRetryInterval: Duration,
         /** Maximum file size */
         val maxFileSize: Int
 ) {
     companion object {
+        @JvmStatic
         val default = RPCClientConfiguration(
                 minimumServerProtocolVersion = 0,
+                trackRpcCallSites = false,
                 reapIntervalMs = 1000,
                 observationExecutorPoolSize = 4,
                 producerPoolBound = 1,
                 cacheConcurrencyLevel = 8,
-                connectionRetryIntervalMs = 5.seconds.toMillis(),
+                connectionRetryInterval = 5.seconds,
                 connectionRetryIntervalMultiplier = 1.5,
-                connectionMaxRetryIntervalMs = 3.minutes.toMillis(),
+                connectionMaxRetryInterval = 3.minutes,
                 /** 10 MiB maximum allowed file size for attachments, including message headers. TODO: acquire this value from Network Map when supported. */
                 maxFileSize = 10485760
         )
@@ -76,15 +87,21 @@ class RPCClient<I : RPCOps>(
     constructor(
             hostAndPort: HostAndPort,
             sslConfiguration: SSLConfiguration? = null,
-            rpcConfiguration: RPCClientConfiguration = RPCClientConfiguration.default
-    ) : this(tcpTransport(ConnectionDirection.Outbound(), hostAndPort, sslConfiguration), rpcConfiguration)
+            configuration: RPCClientConfiguration = RPCClientConfiguration.default
+    ) : this(tcpTransport(ConnectionDirection.Outbound(), hostAndPort, sslConfiguration), configuration)
 
     companion object {
         private val log = loggerFor<RPCClient<*>>()
     }
 
+    /**
+     * Holds a proxy object implementing [I] that forwards requests to the RPC server.
+     *
+     * [Closeable.close] may be used to shut down the connection and release associated resources.
+     */
     interface RPCConnection<out I : RPCOps> : Closeable {
         val proxy: I
+        /** The RPC protocol version reported by the server */
         val serverProtocolVersion: Int
     }
 
@@ -92,7 +109,7 @@ class RPCClient<I : RPCOps>(
      * Returns an [RPCConnection] containing a proxy that lets you invoke RPCs on the server. Calls on it block, and if
      * the server throws an exception then it will be rethrown on the client. Proxies are thread safe and may be used to
      * invoke multiple RPCs in parallel.
-     **
+     *
      * RPC sends and receives are logged on the net.corda.rpc logger.
      *
      * The [RPCOps] defines what client RPCs are available. If an RPC returns an [Observable] anywhere in the object
@@ -102,8 +119,8 @@ class RPCClient<I : RPCOps>(
      * [net.corda.client.rpc.notUsed] method on it. You don't have to explicitly close the observable if you actually
      * subscribe to it: it will close itself and free up the server-side resources either when the client or JVM itself
      * is shutdown, or when there are no more subscribers to it. Once all the subscribers to a returned observable are
-     * unsubscribed, the observable is closed and you can't then re-subscribe again: you'll have to re-request a fresh
-     * observable with another RPC.
+     * unsubscribed or the observable completes successfully or with an error, the observable is closed and you can't
+     * then re-subscribe again: you'll have to re-request a fresh observable with another RPC.
      *
      * @param rpcOpsClass The [Class] of the RPC interface.
      * @param username The username to authenticate with.
@@ -119,13 +136,13 @@ class RPCClient<I : RPCOps>(
             val clientAddress = SimpleString("${RPCApi.RPC_CLIENT_QUEUE_NAME_PREFIX}.$username.${random63BitValue()}")
 
             val serverLocator = ActiveMQClient.createServerLocatorWithoutHA(transport).apply {
-                retryInterval = rpcConfiguration.connectionRetryIntervalMs
+                retryInterval = rpcConfiguration.connectionRetryInterval.toMillis()
                 retryIntervalMultiplier = rpcConfiguration.connectionRetryIntervalMultiplier
-                maxRetryInterval = rpcConfiguration.connectionMaxRetryIntervalMs
+                maxRetryInterval = rpcConfiguration.connectionMaxRetryInterval.toMillis()
                 minLargeMessageSize = rpcConfiguration.maxFileSize
             }
 
-            val proxyHandler = RPCClientProxyHandler(rpcConfiguration, username, password, serverLocator, clientAddress)
+            val proxyHandler = RPCClientProxyHandler(rpcConfiguration, username, password, serverLocator, clientAddress, rpcOpsClass)
             proxyHandler.start()
 
             @Suppress("UNCHECKED_CAST")

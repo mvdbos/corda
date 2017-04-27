@@ -3,7 +3,6 @@ package net.corda.attachmentdemo
 import com.google.common.net.HostAndPort
 import joptsimple.OptionParser
 import net.corda.client.rpc.CordaRPCClient
-import net.corda.client.rpc.start
 import net.corda.core.contracts.Contract
 import net.corda.core.contracts.ContractState
 import net.corda.core.contracts.TransactionForContract

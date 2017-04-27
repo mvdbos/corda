@@ -74,6 +74,7 @@ class ClientRPCInfrastructureTests : AbstractRPCTest() {
             // Does nothing, doesn't throw.
             proxy.void()
 
+            proxy.barf()
             assertEquals("Barf!", assertFailsWith<IllegalArgumentException> {
                 proxy.barf()
             }.message)
@@ -121,9 +122,6 @@ class ClientRPCInfrastructureTests : AbstractRPCTest() {
                 }
             }
 
-//            TODO()
-//            assertEquals(2, session.addressQuery(rpcQueuesQuery).queueNames.size)
-
             assertThat(clientQuotes).isEmpty()
 
             serverQuotes.onNext(twainQuotes)
@@ -137,7 +135,6 @@ class ClientRPCInfrastructureTests : AbstractRPCTest() {
             assertTrue(serverQuotes.hasObservers())
             subscription.unsubscribe()
             unsubscribeLatch.await()
-//            assertEquals(1, clientSession.addressQuery(rpcQueuesQuery).queueNames.size)
         }
     }
 
@@ -169,16 +166,12 @@ class ClientRPCInfrastructureTests : AbstractRPCTest() {
                 }
             }
 
-//            val rpcQueuesQuery = SimpleString("clients.${authenticatedUser.username}.rpc.*")
-//            assertEquals(2, clientSession.addressQuery(rpcQueuesQuery).queueNames.size)
-
             assertThat(clientQuotes).isEmpty()
 
             serverQuote.set(twainQuote)
             assertThat(clientQuotes.take()).isEqualTo("Quote by Mark Twain: I have never let my schooling interfere with my education.")
 
             // TODO This final assert sometimes fails because the relevant queue hasn't been removed yet
-//        assertEquals(1, clientSession.addressQuery(rpcQueuesQuery).queueNames.size)
         }
     }
 
