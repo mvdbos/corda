@@ -1,12 +1,17 @@
 package net.corda.core.crypto
 
+import net.corda.core.crypto.Crypto.generateKeyPair
 import net.corda.core.exists
 import net.corda.core.random63BitValue
 import net.corda.core.read
 import net.corda.core.write
+import net.i2p.crypto.eddsa.EdDSAEngine
+import net.i2p.crypto.eddsa.EdDSAKey
 import org.bouncycastle.asn1.ASN1Encodable
 import org.bouncycastle.asn1.ASN1EncodableVector
+import org.bouncycastle.asn1.ASN1ObjectIdentifier
 import org.bouncycastle.asn1.DERSequence
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x500.X500NameBuilder
 import org.bouncycastle.asn1.x500.style.BCStyle
@@ -16,9 +21,9 @@ import org.bouncycastle.cert.X509v3CertificateBuilder
 import org.bouncycastle.cert.bc.BcX509ExtensionUtils
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
+import org.bouncycastle.jcajce.provider.util.AsymmetricKeyInfoConverter
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import org.bouncycastle.pkcs.PKCS10CertificationRequest
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder
 import org.bouncycastle.util.IPAddress
@@ -34,18 +39,16 @@ import java.security.*
 import java.security.cert.Certificate
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
-import java.security.spec.ECGenParameterSpec
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.*
 
 object X509Utilities {
 
-    val SIGNATURE_ALGORITHM = "SHA256withECDSA"
-    val KEY_GENERATION_ALGORITHM = "ECDSA"
-    // TLS implementations only support standard SEC2 curves, although internally Corda uses newer EDDSA keys.
-    // Also browsers like Chrome don't seem to support the secp256k1, only the secp256r1 curve.
-    val ECDSA_CURVE = "secp256r1"
+    // TODO: Remove these when algorithm constants are accessible from the Crypto object.
+    val ECDSA_SIGNATURE_ALGORITHM = "SHA256withECDSA"
+    val ECDSA = "ECDSA_SECP256R1_SHA256"
+    val EDDSA = "EDDSA_ED25519_SHA512"
 
     val KEYSTORE_TYPE = "JKS"
 
@@ -58,7 +61,26 @@ object X509Utilities {
     val CORDA_CLIENT_CA = "cordaclientca"
 
     init {
-        Security.addProvider(BouncyCastleProvider()) // register Bouncy Castle Crypto Provider required to sign certificates
+        BouncyCastleProvider().apply {
+            // Add EdDSA to bouncy castle security provider.
+            addAlgorithm("KeyFactory.EdDSA", "net.i2p.crypto.eddsa.KeyFactory")
+            addAlgorithm("KeyPairGenerator.EdDSA", "net.i2p.crypto.eddsa.KeyPairGenerator")
+            addAlgorithm("Signature.NONEwithEdDSA", "net.i2p.crypto.eddsa.EdDSAEngine")
+
+            addAlgorithm("Alg.Alias.KeyFactory.1.3.101.112", EdDSAKey.KEY_ALGORITHM)
+            addAlgorithm("Alg.Alias.KeyFactory.OID.1.3.101.112", EdDSAKey.KEY_ALGORITHM)
+            addAlgorithm("Alg.Alias.KeyPairGenerator.1.3.101.112", EdDSAKey.KEY_ALGORITHM)
+            addAlgorithm("Alg.Alias.KeyPairGenerator.OID.1.3.101.112", EdDSAKey.KEY_ALGORITHM)
+            addAlgorithm("Alg.Alias.Signature.1.3.101.112", EdDSAEngine.SIGNATURE_ALGORITHM)
+            addAlgorithm("Alg.Alias.Signature.OID.1.3.101.112", EdDSAEngine.SIGNATURE_ALGORITHM)
+            addKeyInfoConverter(ASN1ObjectIdentifier("1.3.101.112"), EdDSAKeyInfoConverter())
+            Security.addProvider(this) // register Bouncy Castle Crypto Provider required to sign certificates
+        }
+    }
+
+    private class EdDSAKeyInfoConverter : AsymmetricKeyInfoConverter {
+        override fun generatePublic(keyInfo: SubjectPublicKeyInfo?): PublicKey? = keyInfo?.let { Crypto.decodePublicKey(it.encoded, EDDSA) }
+        override fun generatePrivate(keyInfo: PrivateKeyInfo?): PrivateKey? = keyInfo?.let { Crypto.decodePrivateKey(it.encoded, EDDSA) }
     }
 
     /**
@@ -101,8 +123,8 @@ object X509Utilities {
     /**
      * Use bouncy castle utilities to sign completed X509 certificate with CA cert private key
      */
-    private fun signCertificate(certificateBuilder: X509v3CertificateBuilder, signedWithPrivateKey: PrivateKey): X509Certificate {
-        val signer = JcaContentSignerBuilder(SIGNATURE_ALGORITHM).setProvider(BouncyCastleProvider.PROVIDER_NAME).build(signedWithPrivateKey)
+    private fun signCertificate(certificateBuilder: X509v3CertificateBuilder, signedWithPrivateKey: PrivateKey, signatureAlgorithm: String): X509Certificate {
+        val signer = ContentSignerBuilder(signatureAlgorithm).build(signedWithPrivateKey, BouncyCastleProvider.PROVIDER_NAME)
         return JcaX509CertificateConverter().setProvider(BouncyCastleProvider.PROVIDER_NAME).getCertificate(certificateBuilder.build(signer))
     }
 
@@ -224,18 +246,6 @@ object X509Utilities {
         this.setCertificateEntry(alias, cert)
     }
 
-
-    /**
-     * Generate a standard curve ECDSA KeyPair suitable for TLS, although the rest of Corda uses newer curves.
-     * @return The generated Public/Private KeyPair
-     */
-    fun generateECDSAKeyPairForSSL(): KeyPair {
-        val keyGen = KeyPairGenerator.getInstance(KEY_GENERATION_ALGORITHM, BouncyCastleProvider.PROVIDER_NAME)
-        val ecSpec = ECGenParameterSpec(ECDSA_CURVE) // Force named curve, because TLS implementations don't support many curves
-        keyGen.initialize(ecSpec, newSecureRandom())
-        return keyGen.generateKeyPair()
-    }
-
     /**
      * Create certificate signing request using provided information.
      *
@@ -257,10 +267,9 @@ object X509Utilities {
      * @param keyPair Standard curve ECDSA KeyPair generated for TLS.
      * @return The generated Certificate signing request.
      */
-    fun createCertificateSigningRequest(subject: X500Name, keyPair: KeyPair): PKCS10CertificationRequest {
-        val signer = JcaContentSignerBuilder(SIGNATURE_ALGORITHM)
-                .setProvider(BouncyCastleProvider.PROVIDER_NAME)
-                .build(keyPair.private)
+    fun createCertificateSigningRequest(subject: X500Name, keyPair: KeyPair, signatureAlgorithm: String = ECDSA_SIGNATURE_ALGORITHM): PKCS10CertificationRequest {
+        val signer = ContentSignerBuilder(signatureAlgorithm)
+                .build(keyPair.private, BouncyCastleProvider.PROVIDER_NAME)
         return JcaPKCS10CertificationRequestBuilder(subject, keyPair.public).build(signer)
     }
 
@@ -285,8 +294,8 @@ object X509Utilities {
      * @return A data class is returned containing the new root CA Cert and its [KeyPair] for signing downstream certificates.
      * Note the generated certificate tree is capped at max depth of 2 to be in line with commercially available certificates
      */
-    fun createSelfSignedCACert(subject: X500Name): CACertAndKey {
-        val keyPair = generateECDSAKeyPairForSSL()
+    fun createSelfSignedCACert(subject: X500Name, schemeCodeName: String = ECDSA, signatureAlgorithm: String = ECDSA_SIGNATURE_ALGORITHM): CACertAndKey {
+        val keyPair = generateKeyPair(schemeCodeName)
 
         val issuer = subject
         val serial = BigInteger.valueOf(random63BitValue())
@@ -314,7 +323,7 @@ object X509Utilities {
         builder.addExtension(Extension.extendedKeyUsage, false,
                 DERSequence(purposes))
 
-        val cert = signCertificate(builder, keyPair.private)
+        val cert = signCertificate(builder, keyPair.private, signatureAlgorithm)
 
         cert.checkValidity(Date())
         cert.verify(pubKey)
@@ -341,9 +350,8 @@ object X509Utilities {
      * @return A data class is returned containing the new intermediate CA Cert and its KeyPair for signing downstream certificates.
      * Note the generated certificate tree is capped at max depth of 1 below this to be in line with commercially available certificates
      */
-    fun createIntermediateCert(subject: X500Name,
-                               certificateAuthority: CACertAndKey): CACertAndKey {
-        val keyPair = generateECDSAKeyPairForSSL()
+    fun createIntermediateCert(subject: X500Name, certificateAuthority: CACertAndKey, schemeCodeName: String = ECDSA, signatureAlgorithm: String = ECDSA_SIGNATURE_ALGORITHM): CACertAndKey {
+        val keyPair = generateKeyPair(schemeCodeName)
 
         val issuer = X509CertificateHolder(certificateAuthority.certificate.encoded).subject
         val serial = BigInteger.valueOf(random63BitValue())
@@ -371,7 +379,7 @@ object X509Utilities {
         builder.addExtension(Extension.extendedKeyUsage, false,
                 DERSequence(purposes))
 
-        val cert = signCertificate(builder, certificateAuthority.keyPair.private)
+        val cert = signCertificate(builder, certificateAuthority.keyPair.private, signatureAlgorithm)
 
         cert.checkValidity(Date())
         cert.verify(certificateAuthority.keyPair.public)
@@ -393,7 +401,8 @@ object X509Utilities {
                          publicKey: PublicKey,
                          certificateAuthority: CACertAndKey,
                          subjectAlternativeNameDomains: List<String>,
-                         subjectAlternativeNameIps: List<String>): X509Certificate {
+                         subjectAlternativeNameIps: List<String>,
+                         signatureAlgorithm: String = ECDSA_SIGNATURE_ALGORITHM): X509Certificate {
 
         val issuer = X509CertificateHolder(certificateAuthority.certificate.encoded).subject
         val serial = BigInteger.valueOf(random63BitValue())
@@ -433,7 +442,7 @@ object X509Utilities {
         val subjectAlternativeNamesExtension = DERSequence(subjectAlternativeNames.toTypedArray())
         builder.addExtension(Extension.subjectAlternativeName, false, subjectAlternativeNamesExtension)
 
-        val cert = signCertificate(builder, certificateAuthority.keyPair.private)
+        val cert = signCertificate(builder, certificateAuthority.keyPair.private, signatureAlgorithm)
 
         cert.checkValidity(Date())
         cert.verify(certificateAuthority.keyPair.public)
@@ -604,8 +613,9 @@ object X509Utilities {
                              keyPassword: String,
                              caKeyStore: KeyStore,
                              caKeyPassword: String,
-                             commonName: String): KeyStore = createKeystoreForSSL(keyStoreFilePath, storePassword, keyPassword,
-            caKeyStore, caKeyPassword, getDevX509Name(commonName))
+                             commonName: String,
+                             schemeCodeName: String = ECDSA): KeyStore = createKeystoreForSSL(keyStoreFilePath, storePassword, keyPassword,
+            caKeyStore, caKeyPassword, getDevX509Name(commonName), schemeCodeName)
 
     /**
      * An all in wrapper to manufacture a server certificate and keys all stored in a KeyStore suitable for running TLS on the local machine
@@ -622,7 +632,8 @@ object X509Utilities {
                              keyPassword: String,
                              caKeyStore: KeyStore,
                              caKeyPassword: String,
-                             commonName: X500Name): KeyStore {
+                             commonName: X500Name,
+                             schemeCodeName: String = ECDSA): KeyStore {
         val rootCA = X509Utilities.loadCertificateAndKey(
                 caKeyStore,
                 caKeyPassword,
@@ -632,7 +643,7 @@ object X509Utilities {
                 caKeyPassword,
                 CORDA_INTERMEDIATE_CA_PRIVATE_KEY)
 
-        val serverKey = generateECDSAKeyPairForSSL()
+        val serverKey = generateKeyPair(schemeCodeName)
         val host = InetAddress.getLocalHost()
         val serverCert = createServerCert(
                 commonName,
