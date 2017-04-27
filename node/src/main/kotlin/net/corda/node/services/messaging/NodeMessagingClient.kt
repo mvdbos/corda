@@ -486,21 +486,22 @@ class NodeMessagingClient(override val config: NodeConfiguration,
         }
     }
 
-    private fun createRPCDispatcher(ops: RPCOps, userService: RPCUserService, nodeLegalName: String) =
-            object : RPCDispatcher(ops, userService, nodeLegalName) {
-                override fun send(data: SerializedBytes<*>, toAddress: String) {
-                    messagingExecutor.fetchFrom {
-                        state.locked {
-                            val msg = session!!.createMessage(false).apply {
-                                writeBodyBufferBytes(data.bytes)
-                                // Use the magic deduplication property built into Artemis as our message identity too
-                                putStringProperty(HDR_DUPLICATE_DETECTION_ID, SimpleString(UUID.randomUUID().toString()))
-                            }
-                            producer!!.send(toAddress, msg)
+    private fun createRPCDispatcher(ops: RPCOps, userService: RPCUserService, nodeLegalName: X500Name): RPCDispatcher {
+        return object : RPCDispatcher(ops, userService, nodeLegalName) {
+            override fun send(data: SerializedBytes<*>, toAddress: String) {
+                messagingExecutor.fetchFrom {
+                    state.locked {
+                        val msg = session!!.createMessage(false).apply {
+                            writeBodyBufferBytes(data.bytes)
+                            // Use the magic deduplication property built into Artemis as our message identity too
+                            putStringProperty(HDR_DUPLICATE_DETECTION_ID, SimpleString(UUID.randomUUID().toString()))
                         }
+                        producer!!.send(toAddress, msg)
                     }
                 }
             }
+        }
+    }
 
     private fun createOutOfProcessVerifierService(): TransactionVerifierService {
         return object : OutOfProcessTransactionVerifierService(monitoringService) {

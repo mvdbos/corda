@@ -32,7 +32,7 @@ class SimpleNode(val config: NodeConfiguration, val address: HostAndPort = freeL
     val userService = RPCUserServiceImpl(config.rpcUsers)
     val monitoringService = MonitoringService(MetricRegistry())
     val identity: KeyPair = generateKeyPair()
-    val executor = ServiceAffinityExecutor(config.myLegalName, 1)
+    val executor = ServiceAffinityExecutor(config.myLegalName.toString(), 1)
     val broker = ArtemisMessagingServer(config, address, rpcAddress, InMemoryNetworkMapCache(), userService)
     val networkMapRegistrationFuture: SettableFuture<Unit> = SettableFuture.create<Unit>()
     val net = database.transaction {
@@ -54,7 +54,7 @@ class SimpleNode(val config: NodeConfiguration, val address: HostAndPort = freeL
                     override val protocolVersion = 0
                 },
                 userService)
-        thread(name = config.myLegalName) {
+        thread(name = config.myLegalName.toString()) {
             net.run()
         }
     }
