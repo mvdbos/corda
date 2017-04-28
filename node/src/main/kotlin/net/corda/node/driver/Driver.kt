@@ -454,7 +454,7 @@ class DriverDSL(
         val debugPort = if (isDebug) debugPortAllocation.nextPort() else null
         val name = providedName ?: X509Utilities.getDevX509Name("${pickA(name).commonName}-${p2pAddress.port}")
 
-        val baseDirectory = driverDirectory / name.toString()
+        val baseDirectory = driverDirectory / name.commonName
         val configOverrides = mapOf(
                 "myLegalName" to name.toString(),
                 "p2pAddress" to p2pAddress.toString(),
@@ -502,7 +502,14 @@ class DriverDSL(
             rpcUsers: List<User>
     ): ListenableFuture<Pair<Party, List<NodeHandle>>> {
         val nodeNames = (1..clusterSize).map { "${DUMMY_NOTARY.name} $it" }
-        val paths = nodeNames.map { driverDirectory / it }
+        val nodeDirNames = nodeNames.map {
+            try {
+                X500Name(it).commonName
+            } catch(ex: IllegalArgumentException) {
+                it
+            }
+        }
+        val paths = nodeDirNames.map { driverDirectory / it }
         ServiceIdentityGenerator.generateToDisk(paths, type.id, notaryName)
 
         val serviceInfo = ServiceInfo(type, notaryName)
@@ -559,7 +566,12 @@ class DriverDSL(
     override fun startNetworkMapService() {
         val debugPort = if (isDebug) debugPortAllocation.nextPort() else null
         val apiAddress = portAllocation.nextHostAndPort().toString()
-        val baseDirectory = driverDirectory / networkMapLegalName
+        val nodeDirName = try {
+            X500Name(networkMapLegalName).commonName
+        } catch(ex: IllegalArgumentException) {
+            networkMapLegalName
+        }
+        val baseDirectory = driverDirectory / nodeDirName
         val config = ConfigHelper.loadConfig(
                 baseDirectory = baseDirectory,
                 allowMissingConfig = true,
