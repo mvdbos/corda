@@ -7,12 +7,14 @@ import net.corda.core.future
 import net.corda.core.messaging.RPCOps
 import net.corda.core.random63BitValue
 import net.corda.core.serialization.CordaSerializable
+import net.corda.core.utilities.loggerFor
 import net.corda.node.driver.poll
 import net.corda.node.services.messaging.RPCServerConfiguration
 import net.corda.nodeapi.RPCApi
 import net.corda.testing.RPCDriverExposedDSLInterface
 import net.corda.testing.rpcDriver
 import net.corda.testing.startRandomRpcClient
+import net.corda.testing.startRpcClient
 import org.apache.activemq.artemis.api.core.SimpleString
 import org.junit.Ignore
 import org.junit.Test
@@ -42,13 +44,11 @@ class RPCConcurrencyTests : AbstractRPCTest() {
         fun waitLatch(id: Long)
         fun downLatch(id: Long)
         fun getImmediateObservableTree(depth: Int, branchingFactor: Int): ObservableRose<Int>
-        fun leakObservable(): Observable<Nothing>
         fun getParallelObservableTree(depth: Int, branchingFactor: Int): ObservableRose<Int>
     }
 
     class TestOpsImpl : TestOps {
         private val latches = ConcurrentHashMap<Long, CountDownLatch>()
-        val leakedUnsubscribedCount = AtomicInteger(0)
         override val protocolVersion = 0
 
         override fun newLatch(numberOfDowns: Int): Long {
@@ -81,7 +81,7 @@ class RPCConcurrencyTests : AbstractRPCTest() {
             } else {
                 val publish = UnicastSubject.create<ObservableRose<Int>>()
                 future {
-                    (1 .. branchingFactor).toList().parallelStream().forEach {
+                    (1..branchingFactor).toList().parallelStream().forEach {
                         publish.onNext(getParallelObservableTree(depth - 1, branchingFactor))
                     }
                     publish.onCompleted()
@@ -89,12 +89,6 @@ class RPCConcurrencyTests : AbstractRPCTest() {
                 publish
             }
             return ObservableRose(depth, branches)
-        }
-
-        override fun leakObservable(): Observable<Nothing> {
-            return PublishSubject.create<Nothing>().doOnUnsubscribe {
-                leakedUnsubscribedCount.incrementAndGet()
-            }
         }
     }
 
@@ -122,14 +116,14 @@ class RPCConcurrencyTests : AbstractRPCTest() {
             val id = proxy.ops.newLatch(numberOfDownsRequired)
             val done = CountDownLatch(numberOfBlockedCalls)
             // Start a couple of blocking RPC calls
-            (1 .. numberOfBlockedCalls).forEach {
+            (1..numberOfBlockedCalls).forEach {
                 future {
                     proxy.ops.waitLatch(id)
                     done.countDown()
                 }
             }
             // Down the latch that the others are waiting for concurrently
-            (1 .. numberOfDownsRequired).toList().parallelStream().forEach {
+            (1..numberOfDownsRequired).toList().parallelStream().forEach {
                 proxy.ops.downLatch(id)
             }
             done.await()
@@ -163,7 +157,7 @@ class RPCConcurrencyTests : AbstractRPCTest() {
             fun ObservableRose<Int>.subscribeToAll() {
                 remainingLatch.countDown()
                 this.branches.subscribe { tree ->
-                    (tree.value + 1 .. treeDepth - 1).forEach {
+                    (tree.value + 1..treeDepth - 1).forEach {
                         require(it in depthsSeen) { "Got ${tree.value} before $it" }
                     }
                     depthsSeen.add(tree.value)
@@ -186,7 +180,7 @@ class RPCConcurrencyTests : AbstractRPCTest() {
             fun ObservableRose<Int>.subscribeToAll() {
                 remainingLatch.countDown()
                 branches.subscribe { tree ->
-                    (tree.value + 1 .. treeDepth - 1).forEach {
+                    (tree.value + 1..treeDepth - 1).forEach {
                         require(it in depthsSeen) { "Got ${tree.value} before $it" }
                     }
                     depthsSeen.add(tree.value)
@@ -195,86 +189,6 @@ class RPCConcurrencyTests : AbstractRPCTest() {
             }
             proxy.ops.getParallelObservableTree(treeDepth, treeBranchingFactor).subscribeToAll()
             remainingLatch.await()
-        }
-    }
-
-    @Test
-    fun `client cleans up leaked observables`() {
-        rpcDriver {
-            val proxy = testProxy()
-            val N = 200
-            (1 .. N).toList().parallelStream().forEach {
-                proxy.ops.leakObservable()
-            }
-            while (true) {
-                System.gc()
-                if (testOpsImpl.leakedUnsubscribedCount.get() == N) break
-                Thread.sleep(100)
-            }
-        }
-    }
-
-    interface SmallRPCOps : RPCOps {
-        fun someFunction(string: String): Observable<String>
-        fun someOtherFunction(int: Int?): ListenableFuture<Int?>
-    }
-
-    @Ignore("TODO This test needs more thought, it's too flaky now. We need some way of signalling that the " +
-            "out-of-process RPC clients have indeed started to emit events (there is a long delay between creating of " +
-            "the artemis queues and the first RPC going through because of kryo slowness)")
-    @Test
-    fun `server cleans up queues after disconnected clients`() {
-        rpcDriver {
-            val server = startRpcServer<SmallRPCOps>(
-                    configuration = RPCServerConfiguration.default.copy(
-                            reapIntervalMs = 100
-                    ),
-                    connectionTtlMs = 1000,
-                    ops = object : SmallRPCOps {
-                        override val protocolVersion = 0
-                        override fun someFunction(string: String): Observable<String> {
-                            return Observable.interval(1, TimeUnit.SECONDS).map { string }
-                        }
-
-                        override fun someOtherFunction(int: Int?): ListenableFuture<Int?> {
-                            return future {
-                                Thread.sleep(1000)
-                                int
-                            }
-                        }
-                    }).get()
-
-            val numberOfClients = 4
-            val clients = Futures.allAsList((1 .. numberOfClients).map {
-                startRandomRpcClient<SmallRPCOps>(server.hostAndPort)
-            }).get()
-
-            val session = startArtemisSession(server.hostAndPort)
-            val executor = Executors.newScheduledThreadPool(1)
-
-            fun pollUntilClientNumber(expected: Int) {
-                val pollResult = poll(executor, "number of RPC clients to become $expected") {
-                    val queryResult = session.addressQuery(SimpleString("${RPCApi.RPC_CLIENT_QUEUE_NAME_PREFIX}.#"))
-                    println(queryResult.queueNames)
-                    if (queryResult.queueNames.size == expected) {
-                        Unit
-                    } else {
-                        null
-                    }
-                }
-                shutdownManager.registerShutdown {
-                    pollResult.cancel(true)
-                }
-                pollResult.get()
-            }
-            pollUntilClientNumber(numberOfClients)
-            Thread.sleep(3000)
-            clients[0].destroyForcibly()
-            pollUntilClientNumber(numberOfClients - 1)
-            (1 .. numberOfClients - 1).forEach {
-                clients[it].destroyForcibly()
-            }
-            pollUntilClientNumber(0)
         }
     }
 }

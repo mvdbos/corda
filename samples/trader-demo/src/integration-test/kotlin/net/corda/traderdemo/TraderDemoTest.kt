@@ -2,9 +2,9 @@ package net.corda.traderdemo
 
 import com.google.common.util.concurrent.Futures
 import net.corda.client.rpc.CordaRPCClient
-import net.corda.client.rpc.internal.start
 import net.corda.core.contracts.DOLLARS
 import net.corda.core.getOrThrow
+import net.corda.core.millis
 import net.corda.core.node.services.ServiceInfo
 import net.corda.core.utilities.DUMMY_BANK_A
 import net.corda.core.utilities.DUMMY_BANK_B
@@ -55,7 +55,7 @@ class TraderDemoTest : NodeBasedTest() {
         assertThat(clientB.cashCount).isEqualTo(expectedBCash)
         // Wait until A receives the commercial paper
         val executor = Executors.newScheduledThreadPool(1)
-        poll(executor, "A to be notified of the commercial paper", pollIntervalMs = 100) {
+        poll(executor, "A to be notified of the commercial paper", pollInterval = 100.millis) {
             val actualPaper = listOf(clientA.commercialPaperCount, clientB.commercialPaperCount)
             if (actualPaper == expectedPaper) {
                 Unit

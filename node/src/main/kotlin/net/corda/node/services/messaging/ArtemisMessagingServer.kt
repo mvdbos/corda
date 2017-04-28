@@ -184,7 +184,13 @@ class ArtemisMessagingServer(override val config: NodeConfiguration,
                 // Create an RPC queue: this will service locally connected clients only (not via a bridge) and those
                 // clients must have authenticated. We could use a single consumer for everything and perhaps we should,
                 // but these queues are not worth persisting.
-                queueConfig(RPCApi.RPC_SERVER_QUEUE_NAME, durable = false)
+                queueConfig(RPCApi.RPC_SERVER_QUEUE_NAME, durable = false),
+                queueConfig(
+                        name = RPCApi.RPC_CLIENT_BINDING_REMOVALS,
+                        address = NOTIFICATIONS_ADDRESS,
+                        filter = RPCApi.RPC_CLIENT_BINDING_REMOVAL_FILTER_EXPRESSION,
+                        durable = false
+                )
         )
         configureAddressSecurity()
     }

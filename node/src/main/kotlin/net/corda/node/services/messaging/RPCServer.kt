@@ -9,6 +9,9 @@ import com.esotericsoftware.kryo.pool.KryoPool
 import com.google.common.cache.Cache
 import com.google.common.cache.CacheBuilder
 import com.google.common.cache.RemovalListener
+import com.google.common.collect.HashMultimap
+import com.google.common.collect.Multimaps
+import com.google.common.collect.SetMultimap
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import net.corda.core.ErrorOr
 import net.corda.core.crypto.commonName
@@ -24,8 +27,11 @@ import net.corda.nodeapi.ArtemisMessagingComponent.Companion.NODE_USER
 import org.apache.activemq.artemis.api.core.Message
 import org.apache.activemq.artemis.api.core.SimpleString
 import org.apache.activemq.artemis.api.core.client.ActiveMQClient.DEFAULT_ACK_BATCH_SIZE
+import org.apache.activemq.artemis.api.core.client.ClientConsumer
 import org.apache.activemq.artemis.api.core.client.ClientMessage
 import org.apache.activemq.artemis.api.core.client.ServerLocator
+import org.apache.activemq.artemis.api.core.management.CoreNotificationType
+import org.apache.activemq.artemis.api.core.management.ManagementHelper
 import org.bouncycastle.asn1.x500.X500Name
 import rx.Notification
 import rx.Observable
@@ -83,6 +89,8 @@ class RPCServer(
     private val methodTable = ops.javaClass.declaredMethods.groupBy { it.name }.mapValues { it.value.single() }
     // The observable subscription mapping.
     private val observableMap = createObservableSubscriptionMap()
+    // A mapping from client addresses to IDs of associated Observables
+    private val clientAddressToObservables = Multimaps.synchronizedSetMultimap(HashMultimap.create<SimpleString, RPCApi.ObservableId>())
     // The scheduled reaper handle.
     private lateinit var reaperScheduledFuture: ScheduledFuture<*>
 
@@ -108,6 +116,7 @@ class RPCServer(
         session.start()
         ArtemisProducer(sessionFactory, session, session.createProducer())
     }
+    private lateinit var clientBindingRemovalConsumer: ClientConsumer
 
     private fun createObservableSubscriptionMap(): ObservableSubscriptionMap {
         val onObservableRemove = RemovalListener<RPCApi.ObservableId, ObservableSubscription> {
@@ -129,10 +138,12 @@ class RPCServer(
             val sessionFactory = serverLocator.createSessionFactory()
             val session = sessionFactory.createSession(rpcServerUsername, rpcServerPassword, false, true, true, false, DEFAULT_ACK_BATCH_SIZE)
             val consumer = session.createConsumer(RPCApi.RPC_SERVER_QUEUE_NAME)
-            consumer.setMessageHandler(this@RPCServer::artemisMessageHandler)
+            consumer.setMessageHandler(this@RPCServer::clientArtemisMessageHandler)
             session.start()
             sessionAndConsumers.add(ArtemisConsumer(sessionFactory, session, consumer))
         }
+        clientBindingRemovalConsumer = sessionAndConsumers[0].session.createConsumer(RPCApi.RPC_CLIENT_BINDING_REMOVALS)
+        clientBindingRemovalConsumer.setMessageHandler(this::bindingRemovalArtemisMessageHandler)
     }
 
     fun close() {
@@ -155,7 +166,16 @@ class RPCServer(
         }
     }
 
-    private fun artemisMessageHandler(artemisMessage: ClientMessage) {
+    private fun bindingRemovalArtemisMessageHandler(artemisMessage: ClientMessage) {
+        val notificationType = artemisMessage.getStringProperty(ManagementHelper.HDR_NOTIFICATION_TYPE)
+        require(notificationType == CoreNotificationType.BINDING_REMOVED.name)
+        val clientAddress = artemisMessage.getStringProperty(ManagementHelper.HDR_ROUTING_NAME)
+        log.warn("Detected RPC client disconnect on address $clientAddress, scheduling for reaping")
+        val observableIds = clientAddressToObservables.removeAll(SimpleString(clientAddress))
+        observableMap.invalidateAll(observableIds)
+    }
+
+    private fun clientArtemisMessageHandler(artemisMessage: ClientMessage) {
         val clientToServer = RPCApi.ClientToServer.fromClientMessage(kryoPool, artemisMessage)
         log.debug { "Got message from RPC client $clientToServer" }
         when (clientToServer) {
@@ -189,6 +209,7 @@ class RPCServer(
                     val observableContext = ObservableContext(
                             clientToServer.id,
                             observableMap,
+                            clientAddressToObservables,
                             clientToServer.clientAddress,
                             sessionAndProducerPool,
                             observationSendExecutor,
@@ -205,39 +226,6 @@ class RPCServer(
     }
 
     private fun reapSubscriptions() {
-        // TODO collect these asynchronously rather than by doing queries
-        val clientAddressToObservable = HashMap<SimpleString, ArrayList<RPCApi.ObservableId>>()
-        observableMap.asMap().forEach {
-            clientAddressToObservable.getOrPut(it.value.clientAddress, { ArrayList() }).add(it.key)
-        }
-        val deadDeployedQueues = ArrayList<SimpleString>()
-        val deployedQueues = sessionAndProducerPool.run {
-            val addressQueryResult = it.session.addressQuery(SimpleString("${RPCApi.RPC_CLIENT_QUEUE_NAME_PREFIX}.#"))
-            addressQueryResult.queueNames.forEach { address ->
-                val queryResult = it.session.queueQuery(address)
-                if (queryResult == null || queryResult.consumerCount == 0) {
-                    deadDeployedQueues.add(address)
-                }
-            }
-            addressQueryResult.queueNames.toSet()
-        }
-        val undeployedQueues = clientAddressToObservable.keys - deployedQueues
-        if (undeployedQueues.isNotEmpty()) {
-            log.warn("Found ${undeployedQueues.size} undeployed RPC queues, reaping them...")
-            undeployedQueues.forEach {
-                clientAddressToObservable[it]?.let {
-                    observableMap.invalidateAll(it)
-                }
-            }
-        }
-        if (deadDeployedQueues.isNotEmpty()) {
-            log.debug("Server reaping observables of ${deadDeployedQueues.size} clients")
-            deadDeployedQueues.forEach {
-                clientAddressToObservable[it]?.let {
-                    observableMap.invalidateAll(it)
-                }
-            }
-        }
         observableMap.cleanUp()
     }
 
@@ -282,6 +270,7 @@ typealias ObservableSubscriptionMap = Cache<RPCApi.ObservableId, ObservableSubsc
 class ObservableContext(
         val rpcRequestId: RPCApi.RpcRequestId,
         val observableMap: ObservableSubscriptionMap,
+        val clientAddressToObservables: SetMultimap<SimpleString, RPCApi.ObservableId>,
         val clientAddress: SimpleString,
         val sessionAndProducerPool: LazyStickyPool<ArtemisProducer>,
         val observationSendExecutor: ExecutorService,
@@ -342,6 +331,7 @@ private object RpcServerObservableSerializer : Serializer<Observable<Any>>() {
                         }
                 )
         )
+        observableContext.clientAddressToObservables.put(observableContext.clientAddress, observableId)
         observableContext.observableMap.put(observableId, observableWithSubscription)
     }
 }

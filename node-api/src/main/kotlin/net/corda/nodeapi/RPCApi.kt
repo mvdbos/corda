@@ -5,8 +5,17 @@ import net.corda.core.ErrorOr
 import net.corda.core.serialization.KryoPoolWithContext
 import net.corda.core.serialization.deserialize
 import net.corda.core.serialization.serialize
+import net.corda.nodeapi.RPCApi.ClientToServer
+import net.corda.nodeapi.RPCApi.ObservableId
+import net.corda.nodeapi.RPCApi.RPC_CLIENT_BINDING_REMOVALS
+import net.corda.nodeapi.RPCApi.RPC_CLIENT_QUEUE_NAME_PREFIX
+import net.corda.nodeapi.RPCApi.RPC_SERVER_QUEUE_NAME
+import net.corda.nodeapi.RPCApi.RpcRequestId
+import net.corda.nodeapi.RPCApi.ServerToClient
 import org.apache.activemq.artemis.api.core.SimpleString
 import org.apache.activemq.artemis.api.core.client.*
+import org.apache.activemq.artemis.api.core.management.CoreNotificationType
+import org.apache.activemq.artemis.api.core.management.ManagementHelper
 import org.apache.activemq.artemis.reader.MessageUtil
 import rx.Notification
 import java.util.*
@@ -43,6 +52,9 @@ import java.util.*
  *                  (FIN)
  *
  * Note that multiple sessions like the above may interleave in an arbitrary fashion.
+ *
+ * Additionally the server may listen on client binding removals for cleanup using [RPC_CLIENT_BINDING_REMOVALS]. This
+ * requires the server to create a filter on the artemis notification address using
  */
 object RPCApi {
     private val TAG_FIELD_NAME = "tag"
@@ -52,6 +64,11 @@ object RPCApi {
 
     val RPC_SERVER_QUEUE_NAME = "rpc.server"
     val RPC_CLIENT_QUEUE_NAME_PREFIX = "rpc.client"
+    val RPC_CLIENT_BINDING_REMOVALS = "rpc.clientqueueremovals"
+
+    val RPC_CLIENT_BINDING_REMOVAL_FILTER_EXPRESSION =
+            "${ManagementHelper.HDR_NOTIFICATION_TYPE} = '${CoreNotificationType.BINDING_REMOVED.name}' AND " +
+            "${ManagementHelper.HDR_ROUTING_NAME} LIKE '$RPC_CLIENT_QUEUE_NAME_PREFIX.%'"
 
     data class RpcRequestId(val toLong: Long)
     data class ObservableId(val toLong: Long)

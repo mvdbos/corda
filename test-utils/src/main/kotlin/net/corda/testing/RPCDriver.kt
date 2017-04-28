@@ -21,6 +21,7 @@ import net.corda.nodeapi.ArtemisTcpTransport
 import net.corda.nodeapi.ConnectionDirection
 import net.corda.nodeapi.RPCApi
 import net.corda.nodeapi.User
+import org.apache.activemq.artemis.api.core.SimpleString
 import org.apache.activemq.artemis.api.core.TransportConfiguration
 import org.apache.activemq.artemis.api.core.client.ActiveMQClient
 import org.apache.activemq.artemis.api.core.client.ActiveMQClient.DEFAULT_ACK_BATCH_SIZE
@@ -222,36 +223,41 @@ data class RPCDriverDSL(
         val driverDSL: DriverDSL
 ) : DriverDSLInternalInterface by driverDSL, RPCDriverInternalDSLInterface {
     private companion object {
+        val notificationAddress = "notifications"
+        val rpcQueueConfigurations = listOf(
+                CoreQueueConfiguration().apply {
+                    name = RPCApi.RPC_SERVER_QUEUE_NAME
+                    address = RPCApi.RPC_SERVER_QUEUE_NAME
+                    isDurable = false
+                },
+                CoreQueueConfiguration().apply {
+                    name = RPCApi.RPC_CLIENT_BINDING_REMOVALS
+                    address = notificationAddress
+                    filterString = RPCApi.RPC_CLIENT_BINDING_REMOVAL_FILTER_EXPRESSION
+                    isDurable = false
+                }
+        )
+
         fun createInVmRpcServerArtemisConfig(): Configuration {
             return ConfigurationImpl().apply {
+                managementNotificationAddress = SimpleString(notificationAddress)
                 acceptorConfigurations = setOf(TransportConfiguration(InVMAcceptorFactory::class.java.name))
                 isPersistenceEnabled = false
                 setPopulateValidatedUser(true)
-                queueConfigurations = listOf(
-                        CoreQueueConfiguration().apply {
-                            name = RPCApi.RPC_SERVER_QUEUE_NAME
-                            address = RPCApi.RPC_SERVER_QUEUE_NAME
-                            isDurable = false
-                        }
-                )
+                queueConfigurations = rpcQueueConfigurations
             }
         }
         fun createRpcServerArtemisConfig(baseDirectory: Path, hostAndPort: HostAndPort, connectionTtlMs: Long): Configuration {
             val connectionDirection = ConnectionDirection.Inbound(acceptorFactoryClassName = NettyAcceptorFactory::class.java.name)
             return ConfigurationImpl().apply {
                 val artemisDir = "$baseDirectory/artemis"
+                managementNotificationAddress = SimpleString(notificationAddress)
                 bindingsDirectory = "$artemisDir/bindings"
                 journalDirectory = "$artemisDir/journal"
                 largeMessagesDirectory = "$artemisDir/large-messages"
                 acceptorConfigurations = setOf(ArtemisTcpTransport.tcpTransport(connectionDirection, hostAndPort, null))
                 setPopulateValidatedUser(true)
-                queueConfigurations = listOf(
-                        CoreQueueConfiguration().apply {
-                            name = RPCApi.RPC_SERVER_QUEUE_NAME
-                            address = RPCApi.RPC_SERVER_QUEUE_NAME
-                            isDurable = false
-                        }
-                )
+                queueConfigurations = rpcQueueConfigurations
                 connectionTTLOverride = connectionTtlMs
                 this.threadPoolMaxSize
             }
@@ -353,7 +359,6 @@ data class RPCDriverDSL(
         val sessionFactory = locator.createSessionFactory()
         val session = sessionFactory.createSession(username, password, false, true, true, locator.isPreAcknowledge, DEFAULT_ACK_BATCH_SIZE)
         driverDSL.shutdownManager.registerShutdown {
-            loggerFor<RPCDriverDSL>().warn("ehh")
             session.close()
             sessionFactory.close()
             locator.close()

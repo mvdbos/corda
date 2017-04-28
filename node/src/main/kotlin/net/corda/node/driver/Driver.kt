@@ -7,11 +7,8 @@ import com.google.common.util.concurrent.*
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigRenderOptions
 import net.corda.client.rpc.CordaRPCClient
-import net.corda.core.ThreadBox
+import net.corda.core.*
 import net.corda.core.crypto.Party
-import net.corda.core.div
-import net.corda.core.flatMap
-import net.corda.core.map
 import net.corda.core.messaging.CordaRPCOps
 import net.corda.core.node.NodeInfo
 import net.corda.core.node.services.ServiceInfo
@@ -24,6 +21,7 @@ import net.corda.node.services.config.VerifierType
 import net.corda.node.services.network.NetworkMapService
 import net.corda.node.services.transactions.RaftValidatingNotaryService
 import net.corda.node.utilities.ServiceIdentityGenerator
+import net.corda.node.utilities.registration.NetworkRegistrationHelper.Companion.pollInterval
 import net.corda.nodeapi.ArtemisMessagingComponent
 import net.corda.nodeapi.User
 import net.corda.nodeapi.config.SSLConfiguration
@@ -35,6 +33,7 @@ import java.io.File
 import java.net.*
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset.UTC
 import java.time.format.DateTimeFormatter
@@ -105,6 +104,24 @@ interface DriverDSLExposedInterface {
     fun startNetworkMapService()
 
     fun waitForAllNodesToFinish()
+
+    /**
+     * Polls a function until it returns a non-null value. Note that there is no timeout on the polling.
+     *
+     * @param pollName A description of what is being polled.
+     * @param pollInterval The interval of polling.
+     * @param warnCount The number of polls after the Driver gives a warning.
+     * @param check The function being polled.
+     * @return A future that completes with the non-null value [check] has returned.
+     */
+    fun <A> pollUntilNonNull(pollName: String, pollInterval: Duration = 500.millis, warnCount: Int = 120, check: () -> A?): ListenableFuture<A>
+    /**
+     * Polls the given function until it returns true.
+     * @see pollUntilNonNull
+     */
+    fun pollUntilTrue(pollName: String, pollInterval: Duration = 500.millis, warnCount: Int = 120, check: () -> Boolean): ListenableFuture<Unit> {
+        return pollUntilNonNull(pollName, pollInterval, warnCount) { if (check()) Unit else null }
+    }
 
     val shutdownManager: ShutdownManager
 }
@@ -266,7 +283,7 @@ fun addressMustNotBeBound(executorService: ScheduledExecutorService, hostAndPort
 fun <A> poll(
         executorService: ScheduledExecutorService,
         pollName: String,
-        pollIntervalMs: Long = 500,
+        pollInterval: Duration = 500.millis,
         warnCount: Int = 120,
         check: () -> A?
 ): ListenableFuture<A> {
@@ -281,7 +298,7 @@ fun <A> poll(
         executorService.schedule(task@ {
             counter++
             if (counter == warnCount) {
-                log.warn("Been polling $pollName for ${pollIntervalMs * warnCount / 1000.0} seconds...")
+                log.warn("Been polling $pollName for ${pollInterval.seconds * warnCount} seconds...")
             }
             val result = try {
                 check()
@@ -294,7 +311,7 @@ fun <A> poll(
             } else {
                 resultFuture.set(result)
             }
-        }, pollIntervalMs, MILLISECONDS)
+        }, pollInterval.toMillis(), MILLISECONDS)
     }
     schedulePoll()
     return resultFuture
@@ -557,6 +574,12 @@ class DriverDSL(
         log.info("Starting network-map-service")
         val startNode = startNode(executorService, config.parseAs<FullNodeConfiguration>(), config, quasarJarPath, debugPort, systemProperties)
         registerProcess(startNode)
+    }
+
+    override fun <A> pollUntilNonNull(pollName: String, pollInterval: Duration, warnCount: Int, check: () -> A?): ListenableFuture<A> {
+        val pollFuture = poll(executorService, pollName, pollInterval, warnCount, check)
+        shutdownManager.registerShutdown { pollFuture.cancel(true) }
+        return pollFuture
     }
 
     companion object {
