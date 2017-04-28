@@ -502,14 +502,14 @@ class DriverDSL(
             rpcUsers: List<User>
     ): ListenableFuture<Pair<Party, List<NodeHandle>>> {
         val nodeNames = (1..clusterSize).map { "${DUMMY_NOTARY.name} $it" }
-        val nodeDirNames = nodeNames.map {
+        val nodeDirectoryNames = nodeNames.map {
             try {
                 X500Name(it).commonName
             } catch(ex: IllegalArgumentException) {
                 it
             }
         }
-        val paths = nodeDirNames.map { driverDirectory / it }
+        val paths = nodeDirectoryNames.map { driverDirectory / it }
         ServiceIdentityGenerator.generateToDisk(paths, type.id, notaryName)
 
         val serviceInfo = ServiceInfo(type, notaryName)
@@ -566,12 +566,12 @@ class DriverDSL(
     override fun startNetworkMapService() {
         val debugPort = if (isDebug) debugPortAllocation.nextPort() else null
         val apiAddress = portAllocation.nextHostAndPort().toString()
-        val nodeDirName = try {
+        val nodeDirectoryName = try {
             X500Name(networkMapLegalName).commonName
         } catch(ex: IllegalArgumentException) {
             networkMapLegalName
         }
-        val baseDirectory = driverDirectory / nodeDirName
+        val baseDirectory = driverDirectory / nodeDirectoryName
         val config = ConfigHelper.loadConfig(
                 baseDirectory = baseDirectory,
                 allowMissingConfig = true,
