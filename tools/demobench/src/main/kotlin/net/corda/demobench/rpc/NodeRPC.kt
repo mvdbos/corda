@@ -3,8 +3,6 @@ package net.corda.demobench.rpc
 import com.google.common.net.HostAndPort
 import net.corda.client.rpc.CordaRPCClient
 import net.corda.client.rpc.CordaRPCConnection
-import net.corda.client.rpc.internal.RPCClient
-import net.corda.client.rpc.internal.start
 import net.corda.core.messaging.CordaRPCOps
 import net.corda.core.utilities.loggerFor
 import net.corda.demobench.model.NodeConfig

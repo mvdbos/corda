@@ -1,7 +1,6 @@
 package net.corda.bank
 
 import com.google.common.util.concurrent.Futures
-import net.corda.client.rpc.internal.start
 import net.corda.core.contracts.DOLLARS
 import net.corda.core.getOrThrow
 import net.corda.core.messaging.startFlow

@@ -5,7 +5,6 @@ import com.google.common.util.concurrent.Futures
 import joptsimple.OptionParser
 import net.corda.client.rpc.CordaRPCClient
 import net.corda.client.rpc.notUsed
-import net.corda.client.rpc.internal.start
 import net.corda.core.crypto.toStringShort
 import net.corda.core.div
 import net.corda.core.getOrThrow

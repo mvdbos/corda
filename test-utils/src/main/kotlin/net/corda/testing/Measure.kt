@@ -1,4 +1,4 @@
-package net.corda.client.rpc
+package net.corda.testing
 
 import java.util.*
 import kotlin.reflect.KCallable

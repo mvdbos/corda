@@ -1,6 +1,5 @@
 package net.corda.node
 
-import net.corda.client.rpc.internal.start
 import net.corda.core.flows.FlowLogic
 import net.corda.core.getOrThrow
 import net.corda.core.messaging.startFlow

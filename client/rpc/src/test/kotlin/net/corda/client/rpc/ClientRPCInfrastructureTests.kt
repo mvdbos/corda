@@ -74,7 +74,6 @@ class ClientRPCInfrastructureTests : AbstractRPCTest() {
             // Does nothing, doesn't throw.
             proxy.void()
 
-            proxy.barf()
             assertEquals("Barf!", assertFailsWith<IllegalArgumentException> {
                 proxy.barf()
             }.message)

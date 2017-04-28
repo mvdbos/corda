@@ -3,7 +3,6 @@ package net.corda.traderdemo
 import com.google.common.net.HostAndPort
 import joptsimple.OptionParser
 import net.corda.client.rpc.CordaRPCClient
-import net.corda.client.rpc.internal.start
 import net.corda.core.contracts.DOLLARS
 import net.corda.core.utilities.loggerFor
 import org.slf4j.Logger

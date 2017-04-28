@@ -6,11 +6,10 @@ import com.codahale.metrics.MetricRegistry
 import com.google.common.base.Stopwatch
 import net.corda.client.rpc.internal.RPCClientConfiguration
 import net.corda.core.messaging.RPCOps
-import net.corda.node.driver.DriverDSL
-import net.corda.node.driver.DriverDSLExposedInterface
 import net.corda.node.driver.ShutdownManager
 import net.corda.node.services.messaging.RPCServerConfiguration
 import net.corda.testing.RPCDriverExposedDSLInterface
+import net.corda.testing.measure
 import net.corda.testing.rpcDriver
 import org.junit.Ignore
 import org.junit.Test
@@ -80,7 +79,7 @@ class RPCPerformanceTests : AbstractRPCTest() {
             val averageIndividualMs: Double,
             val Mbps: Double
     )
-//    @Ignore("Run this manually")
+    @Ignore("Run this manually")
     @Test
     fun `measure Megabytes per second for simple RPCs`() {
         warmup()

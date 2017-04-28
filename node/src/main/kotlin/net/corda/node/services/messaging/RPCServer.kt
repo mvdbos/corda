@@ -57,7 +57,7 @@ data class RPCServerConfiguration(
     companion object {
         val default = RPCServerConfiguration(
                 rpcThreadPoolSize = 4,
-                consumerPoolSize = 1,
+                consumerPoolSize = 2,
                 producerPoolBound = 4,
                 reapIntervalMs = 1000
         )
@@ -148,8 +148,6 @@ class RPCServer(
 
     fun close() {
         reaperScheduledFuture.cancel(false)
-        observableMap.invalidateAll()
-        reapSubscriptions()
         rpcExecutor.shutdownNow()
         reaperExecutor.shutdownNow()
         rpcExecutor.awaitTermination(500, TimeUnit.MILLISECONDS)
@@ -159,6 +157,8 @@ class RPCServer(
             it.session.close()
             it.sessionFactory.close()
         }
+        observableMap.invalidateAll()
+        reapSubscriptions()
         sessionAndProducerPool.close().forEach {
             it.producer.close()
             it.session.close()

@@ -3,7 +3,6 @@ package net.corda.bank.api
 import com.google.common.net.HostAndPort
 import net.corda.bank.api.BankOfCordaWebApi.IssueRequestParams
 import net.corda.client.rpc.CordaRPCClient
-import net.corda.client.rpc.internal.start
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.currency
 import net.corda.core.getOrThrow

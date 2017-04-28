@@ -1,7 +1,6 @@
 package net.corda.attachmentdemo
 
 import com.google.common.util.concurrent.Futures
-import net.corda.client.rpc.internal.start
 import net.corda.core.getOrThrow
 import net.corda.core.node.services.ServiceInfo
 import net.corda.core.utilities.DUMMY_BANK_A
