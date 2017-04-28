@@ -501,15 +501,8 @@ class DriverDSL(
             verifierType: VerifierType,
             rpcUsers: List<User>
     ): ListenableFuture<Pair<Party, List<NodeHandle>>> {
-        val nodeNames = (1..clusterSize).map { "${DUMMY_NOTARY.name} $it" }
-        val nodeDirectoryNames = nodeNames.map {
-            try {
-                X500Name(it).commonName
-            } catch(ex: IllegalArgumentException) {
-                it
-            }
-        }
-        val paths = nodeDirectoryNames.map { driverDirectory / it }
+        val nodeNames = (1..clusterSize).map { "Notary Node $it" }
+        val paths = nodeNames.map { driverDirectory / it }
         ServiceIdentityGenerator.generateToDisk(paths, type.id, notaryName)
 
         val serviceInfo = ServiceInfo(type, notaryName)
