@@ -123,6 +123,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         override val myInfo: NodeInfo get() = info
         override val schemaService: SchemaService get() = schemas
         override val transactionVerifierService: TransactionVerifierService get() = txVerifierService
+        override val auditService: AuditService get() = auditService
 
         // Internal only
         override val monitoringService: MonitoringService = MonitoringService(MetricRegistry())
@@ -167,6 +168,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
     lateinit var scheduler: NodeSchedulerService
     lateinit var flowLogicFactory: FlowLogicRefFactory
     lateinit var schemas: SchemaService
+    lateinit var auditService: AuditService
     val customServices: ArrayList<Any> = ArrayList()
     protected val runOnStop: ArrayList<Runnable> = ArrayList()
     lateinit var database: Database
@@ -285,6 +287,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         schemas = makeSchemaService()
         vault = makeVaultService(configuration.dataSourceProperties)
         txVerifierService = makeTransactionVerifierService()
+        auditService = DummyAuditService()
 
         info = makeInfo()
         identity = makeIdentityService()
