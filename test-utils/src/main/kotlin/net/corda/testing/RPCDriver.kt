@@ -11,7 +11,6 @@ import net.corda.client.rpc.internal.RPCClientConfiguration
 import net.corda.core.div
 import net.corda.core.messaging.RPCOps
 import net.corda.core.utilities.ProcessUtilities
-import net.corda.core.utilities.loggerFor
 import net.corda.node.driver.*
 import net.corda.node.services.RPCUserService
 import net.corda.node.services.messaging.ArtemisMessagingServer
@@ -93,7 +92,6 @@ interface RPCDriverExposedDSLInterface : DriverDSLExposedInterface {
      * @param rpcUser The single user who can access the server through RPC, and their permissions.
      * @param nodeLegalName The legal name of the node to check against to authenticate a super user.
      * @param configuration The RPC server configuration.
-     * @param connectionTtlMs The Artemis TTL of RPC clients.
      * @param ops The server-side implementation of the RPC interface.
      */
     fun <I : RPCOps> startRpcServer(
@@ -101,7 +99,6 @@ interface RPCDriverExposedDSLInterface : DriverDSLExposedInterface {
             rpcUser: User = rpcTestUser,
             nodeLegalName: String = fakeNodeLegalName,
             configuration: RPCServerConfiguration = RPCServerConfiguration.default,
-            connectionTtlMs: Long = 60000,
             ops : I
     ) : ListenableFuture<RpcServerHandle>
 
@@ -245,9 +242,12 @@ data class RPCDriverDSL(
                 isPersistenceEnabled = false
                 setPopulateValidatedUser(true)
                 queueConfigurations = rpcQueueConfigurations
+                journalBufferSize_NIO = ArtemisMessagingServer.MAX_FILE_SIZE
+                journalBufferSize_AIO = ArtemisMessagingServer.MAX_FILE_SIZE
+                journalFileSize = ArtemisMessagingServer.MAX_FILE_SIZE
             }
         }
-        fun createRpcServerArtemisConfig(baseDirectory: Path, hostAndPort: HostAndPort, connectionTtlMs: Long): Configuration {
+        fun createRpcServerArtemisConfig(baseDirectory: Path, hostAndPort: HostAndPort): Configuration {
             val connectionDirection = ConnectionDirection.Inbound(acceptorFactoryClassName = NettyAcceptorFactory::class.java.name)
             return ConfigurationImpl().apply {
                 val artemisDir = "$baseDirectory/artemis"
@@ -258,8 +258,9 @@ data class RPCDriverDSL(
                 acceptorConfigurations = setOf(ArtemisTcpTransport.tcpTransport(connectionDirection, hostAndPort, null))
                 setPopulateValidatedUser(true)
                 queueConfigurations = rpcQueueConfigurations
-                connectionTTLOverride = connectionTtlMs
-                this.threadPoolMaxSize
+                journalBufferSize_NIO = ArtemisMessagingServer.MAX_FILE_SIZE
+                journalBufferSize_AIO = ArtemisMessagingServer.MAX_FILE_SIZE
+                journalFileSize = ArtemisMessagingServer.MAX_FILE_SIZE
             }
         }
         val inVmClientTransportConfiguration = TransportConfiguration(InVMConnectorFactory::class.java.name)
@@ -311,12 +312,11 @@ data class RPCDriverDSL(
             rpcUser: User,
             nodeLegalName: String,
             configuration: RPCServerConfiguration,
-            connectionTtlMs: Long,
             ops: I
     ): ListenableFuture<RpcServerHandle> {
         val hostAndPort = driverDSL.portAllocation.nextHostAndPort()
         return driverDSL.executorService.submit<RpcServerHandle> {
-            val artemisConfig = createRpcServerArtemisConfig(driverDSL.driverDirectory / serverName, hostAndPort, connectionTtlMs)
+            val artemisConfig = createRpcServerArtemisConfig(driverDSL.driverDirectory / serverName, hostAndPort)
             val server = ActiveMQServerImpl(artemisConfig, SingleUserSecurityManager(rpcUser))
             server.start()
             driverDSL.shutdownManager.registerShutdown {
@@ -376,7 +376,7 @@ data class RPCDriverDSL(
             transportConfiguration: TransportConfiguration
     ) {
         val locator = ActiveMQClient.createServerLocatorWithoutHA(transportConfiguration).apply {
-            this.minLargeMessageSize = ArtemisMessagingServer.MAX_FILE_SIZE
+            minLargeMessageSize = ArtemisMessagingServer.MAX_FILE_SIZE
         }
         val userService = object : RPCUserService {
             override fun getUser(username: String): User? = if (username == rpcUser.username) rpcUser else null

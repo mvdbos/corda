@@ -38,7 +38,6 @@ import rx.Observable
 import rx.Subscriber
 import rx.Subscription
 import java.lang.reflect.InvocationTargetException
-import java.lang.reflect.Method
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
@@ -177,7 +176,7 @@ class RPCServer(
 
     private fun clientArtemisMessageHandler(artemisMessage: ClientMessage) {
         val clientToServer = RPCApi.ClientToServer.fromClientMessage(kryoPool, artemisMessage)
-        log.debug { "Got message from RPC client $clientToServer" }
+        log.debug { "-> RPC -> $clientToServer" }
         when (clientToServer) {
             is RPCApi.ClientToServer.RpcRequest -> {
                 val rpcContext = RpcContext(

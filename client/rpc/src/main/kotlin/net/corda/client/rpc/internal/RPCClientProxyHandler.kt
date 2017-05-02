@@ -100,6 +100,7 @@ class RPCClientProxyHandler(
 
     // Holds the RPC reply futures.
     private val rpcReplyMap = RpcReplyMap()
+    // Optionally holds RPC call site stack traces to be shown on errors/warnings.
     private val callSiteMap = if (rpcConfiguration.trackRpcCallSites) CallSiteMap() else null
     // Holds the Observables and a reference store to keep Observables alive when subscribed to.
     private val observableContext = ObservableContext(
@@ -198,12 +199,17 @@ class RPCClientProxyHandler(
             sessionAndProducerPool.run {
                 val message = it.session.createMessage(false)
                 request.writeToClientMessage(kryoPool, message)
-                log.debug { "Sending RPC request ${method.name} with id $rpcId" }
+
+                log.debug {
+                    val argumentsString = arguments?.joinToString() ?: ""
+                    "-> RPC($rpcId) -> ${method.name}($argumentsString): ${method.returnType}"
+                }
 
                 require(rpcReplyMap.put(rpcId, replyFuture) == null) {
                     "Generated several RPC requests with same ID $rpcId"
                 }
                 it.producer.send(message)
+                it.session.commit()
             }
             return replyFuture.getOrThrow()
         } finally {
@@ -222,7 +228,6 @@ class RPCClientProxyHandler(
                     log.error("RPC reply arrived to unknown RPC ID ${serverToClient.id}, this indicates an internal RPC error.")
                 } else {
                     val rpcCallSite = callSiteMap?.get(serverToClient.id.toLong)
-
                     serverToClient.result.match(
                             onError = {
                                 if (rpcCallSite != null) addRpcCallSiteToThrowable(it, rpcCallSite)

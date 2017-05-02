@@ -16,10 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import java.util.*
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
-import java.util.concurrent.Semaphore
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
@@ -87,10 +84,6 @@ class RPCPerformanceTests : AbstractRPCTest() {
         val overallTraffic = 512 * 1024 * 1024L
         measure(inputOutputSizes, (1..5)) { inputOutputSize, N ->
             rpcDriver {
-                val maximumQueued = 100
-
-                val numberOfRequests = overallTraffic / (2 * inputOutputSize)
-                val executor = Executors.newFixedThreadPool(8)
                 val proxy = testProxy(
                         RPCClientConfiguration.default.copy(
                                 cacheConcurrencyLevel = 16,
@@ -103,44 +96,27 @@ class RPCPerformanceTests : AbstractRPCTest() {
                                 producerPoolBound = 8
                         )
                 )
-                val remainingLatch = CountDownLatch(numberOfRequests.toInt())
-                val queuedCount = AtomicInteger(0)
-                val lock = ReentrantLock()
-                val canQueueAgain = lock.newCondition()
-                val injectorShutdown = AtomicBoolean(false)
+
+                val numberOfRequests = overallTraffic / (2 * inputOutputSize)
                 val timings = Collections.synchronizedList(ArrayList<Long>())
-                val injector = thread(name = "injector") {
-                    while (true) {
-                        if (injectorShutdown.get()) break
-                        executor.submit {
-                            val elapsed = Stopwatch.createStarted().apply {
-                                proxy.ops.simpleReply(ByteArray(inputOutputSize), inputOutputSize)
-                            }.stop().elapsed(TimeUnit.MICROSECONDS)
-                            timings.add(elapsed)
-                            if (queuedCount.decrementAndGet() < maximumQueued / 2) {
-                                lock.withLock {
-                                    canQueueAgain.signal()
-                                }
-                            }
-                            remainingLatch.countDown()
-                        }
-                        if (queuedCount.incrementAndGet() > maximumQueued) {
-                            lock.withLock {
-                                canQueueAgain.await()
-                            }
-                        }
+                val executor = Executors.newFixedThreadPool(8)
+                val totalElapsed = Stopwatch.createStarted().apply {
+                    startInjectorWithBoundedQueue(
+                            executor = executor,
+                            numberOfInjections = numberOfRequests.toInt(),
+                            queueBound = 100
+                    ) {
+                        val elapsed = Stopwatch.createStarted().apply {
+                            proxy.ops.simpleReply(ByteArray(inputOutputSize), inputOutputSize)
+                        }.stop().elapsed(TimeUnit.MICROSECONDS)
+                        timings.add(elapsed)
                     }
-                }
-                val elapsed = Stopwatch.createStarted().apply {
-                    remainingLatch.await()
                 }.stop().elapsed(TimeUnit.MICROSECONDS)
-                injectorShutdown.set(true)
-                injector.join()
                 executor.shutdownNow()
                 SimpleRPCResult(
-                        requestPerSecond = 1000000.0 * numberOfRequests.toDouble() / elapsed.toDouble(),
+                        requestPerSecond = 1000000.0 * numberOfRequests.toDouble() / totalElapsed.toDouble(),
                         averageIndividualMs = timings.average() / 1000.0,
-                        Mbps = (overallTraffic.toDouble() / elapsed.toDouble()) * (1000000.0 / (1024.0 * 1024.0))
+                        Mbps = (overallTraffic.toDouble() / totalElapsed.toDouble()) * (1000000.0 / (1024.0 * 1024.0))
                 )
             }
         }.forEach(::println)
@@ -152,24 +128,8 @@ class RPCPerformanceTests : AbstractRPCTest() {
     @Ignore("Only use this locally for profiling")
     @Test
     fun `consumption rate`() {
-        val metricRegistry = MetricRegistry()
-        thread {
-            JmxReporter.
-                    forRegistry(metricRegistry).
-                    inDomain("net.corda").
-                    createsObjectNamesWith { _, domain, name ->
-                        // Make the JMX hierarchy a bit better organised.
-                        val category = name.substringBefore('.')
-                        val subName = name.substringAfter('.', "")
-                        if (subName == "")
-                            ObjectName("$domain:name=$category")
-                        else
-                            ObjectName("$domain:type=$category,name=$subName")
-                    }.
-                    build().
-                    start()
-        }
         rpcDriver {
+            val metricRegistry = startJmxReporter()
             val proxy = testProxy(
                     RPCClientConfiguration.default.copy(
                             reapIntervalMs = 100,
@@ -193,6 +153,32 @@ class RPCPerformanceTests : AbstractRPCTest() {
                         proxy.ops.simpleReply(ByteArray(4096), 4096)
                     }
             )
+        }
+    }
+
+    @Test
+    fun `big messages`() {
+        rpcDriver {
+            val proxy = testProxy(
+                    RPCClientConfiguration.default,
+                    RPCServerConfiguration.default.copy(
+                            consumerPoolSize = 4
+                    )
+            )
+            val executor = Executors.newFixedThreadPool(1)
+            val numberOfMessages = 1000
+            val bigSize = 10_000_000
+            val elapsed = Stopwatch.createStarted().apply {
+                startInjectorWithBoundedQueue(
+                        executor = executor,
+                        numberOfInjections = numberOfMessages,
+                        queueBound = 4
+                ) {
+                    proxy.ops.simpleReply(ByteArray(bigSize), 0)
+                }
+            }.stop().elapsed(TimeUnit.MICROSECONDS)
+            val mbps = bigSize.toDouble() * numberOfMessages.toDouble() / elapsed * (1000000.0 / (1024.0 * 1024.0))
+            println("Mbps for $bigSize byte messages: $mbps")
         }
     }
 }
@@ -247,4 +233,64 @@ fun measurePerformancePublishMetrics(
         executor.awaitTermination(1, TimeUnit.SECONDS)
     }
     Thread.sleep((overallDurationSecond * 1000).toLong())
+}
+
+fun startInjectorWithBoundedQueue(
+        executor: ExecutorService,
+        numberOfInjections: Int,
+        queueBound: Int,
+        work: () -> Unit
+) {
+    val remainingLatch = CountDownLatch(numberOfInjections)
+    val queuedCount = AtomicInteger(0)
+    val lock = ReentrantLock()
+    val canQueueAgain = lock.newCondition()
+    val injectorShutdown = AtomicBoolean(false)
+    val injector = thread(name = "injector") {
+        while (true) {
+            if (injectorShutdown.get()) break
+            executor.submit {
+                work()
+                if (queuedCount.decrementAndGet() < queueBound / 2) {
+                    lock.withLock {
+                        canQueueAgain.signal()
+                    }
+                }
+                remainingLatch.countDown()
+            }
+            if (queuedCount.incrementAndGet() > queueBound) {
+                lock.withLock {
+                    canQueueAgain.await()
+                }
+            }
+        }
+    }
+    remainingLatch.await()
+    injectorShutdown.set(true)
+    injector.join()
+}
+
+fun RPCDriverExposedDSLInterface.startJmxReporter(): MetricRegistry {
+    val metricRegistry = MetricRegistry()
+    val jmxReporter = thread {
+        JmxReporter.
+                forRegistry(metricRegistry).
+                inDomain("net.corda").
+                createsObjectNamesWith { _, domain, name ->
+                    // Make the JMX hierarchy a bit better organised.
+                    val category = name.substringBefore('.')
+                    val subName = name.substringAfter('.', "")
+                    if (subName == "")
+                        ObjectName("$domain:name=$category")
+                    else
+                        ObjectName("$domain:type=$category,name=$subName")
+                }.
+                build().
+                start()
+    }
+    shutdownManager.registerShutdown {
+        jmxReporter.interrupt()
+        jmxReporter.join()
+    }
+    return metricRegistry
 }
