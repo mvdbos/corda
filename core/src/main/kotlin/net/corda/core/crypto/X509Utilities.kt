@@ -124,7 +124,7 @@ object X509Utilities {
      * Use bouncy castle utilities to sign completed X509 certificate with CA cert private key
      */
     private fun signCertificate(certificateBuilder: X509v3CertificateBuilder, signedWithPrivateKey: PrivateKey, signatureAlgorithm: String): X509Certificate {
-        val signer = ContentSignerBuilder(signatureAlgorithm).build(signedWithPrivateKey, BouncyCastleProvider.PROVIDER_NAME)
+        val signer = ContentSignerBuilder.build(signatureAlgorithm, signedWithPrivateKey, BouncyCastleProvider.PROVIDER_NAME)
         return JcaX509CertificateConverter().setProvider(BouncyCastleProvider.PROVIDER_NAME).getCertificate(certificateBuilder.build(signer))
     }
 
@@ -268,8 +268,8 @@ object X509Utilities {
      * @return The generated Certificate signing request.
      */
     fun createCertificateSigningRequest(subject: X500Name, keyPair: KeyPair, signatureAlgorithm: String = ECDSA_SIGNATURE_ALGORITHM): PKCS10CertificationRequest {
-        val signer = ContentSignerBuilder(signatureAlgorithm)
-                .build(keyPair.private, BouncyCastleProvider.PROVIDER_NAME)
+        val signer = ContentSignerBuilder
+                .build(signatureAlgorithm, keyPair.private, BouncyCastleProvider.PROVIDER_NAME)
         return JcaPKCS10CertificationRequestBuilder(subject, keyPair.public).build(signer)
     }
 
