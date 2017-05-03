@@ -50,7 +50,7 @@ abstract class Simulation(val networkSendManuallyPumped: Boolean,
             throw IllegalArgumentException("The latency injector is only useful when using manual pumping.")
     }
 
-    val bankLocations = listOf(Pair("London", "UK"), Pair("Frankfurt", "Germany"), Pair("Rome", "Italy"))
+    val bankLocations = listOf(Pair("London", "UK"), Pair("Frankfurt", "DE"), Pair("Rome", "IT"))
 
     // This puts together a mock network of SimulatedNodes.
 
@@ -118,7 +118,7 @@ abstract class Simulation(val networkSendManuallyPumped: Boolean,
 
     object RatesOracleFactory : MockNetwork.Factory {
         // TODO: Make a more realistic legal name
-        val RATES_SERVICE_NAME = "CN=Rates Service Provider,O=R3,OU=corda,L=Madrid,C=Spain"
+        val RATES_SERVICE_NAME = "CN=Rates Service Provider,O=R3,OU=corda,L=Madrid,C=SP"
 
         override fun create(config: NodeConfiguration, network: MockNetwork, networkMapAddr: SingleMessageRecipient?,
                             advertisedServices: Set<ServiceInfo>, id: Int, overrideServices: Map<ServiceInfo, KeyPair>?,

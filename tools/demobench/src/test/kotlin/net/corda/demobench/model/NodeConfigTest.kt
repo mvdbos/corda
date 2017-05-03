@@ -177,7 +177,7 @@ class NodeConfigTest {
                 + "\"h2port\":30001,"
                 + "\"myLegalName\":\"My Name\","
                 + "\"nearestCity\":\"Stockholm\","
-                + "\"networkMapService\":{\"address\":\"localhost:12345\",\"legalName\":\"CN=Notary Service,O=R3,OU=corda,L=Zurich,C=Switzerland\"},"
+                + "\"networkMapService\":{\"address\":\"localhost:12345\",\"legalName\":\"CN=Notary Service,O=R3,OU=corda,L=Zurich,C=CH\"},"
                 + "\"p2pAddress\":\"localhost:10001\","
                 + "\"rpcAddress\":\"localhost:40002\","
                 + "\"rpcUsers\":["
