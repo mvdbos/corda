@@ -1,19 +1,14 @@
 package net.corda.notary.experimental.zkp
 
-import net.corda.core.contracts.TimeWindow
-import net.corda.core.flows.NotaryException
-import net.corda.core.flows.NotaryFlow
 import net.corda.core.flows.ZKNotaryFlow
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.utilities.getOrThrow
-import net.corda.core.utilities.seconds
 import net.corda.testing.common.internal.testNetworkParameters
 import net.corda.testing.driver.DriverDSL
 import net.corda.testing.driver.DriverParameters
 import net.corda.testing.driver.InProcess
 import net.corda.testing.driver.driver
 import net.corda.testing.node.NotarySpec
-import org.junit.Ignore
 import org.junit.Test
 import kotlin.test.assertTrue
 
@@ -31,7 +26,7 @@ class ZKNotaryServiceTest {
     ), dsl)
 
     @Test
-    fun `confirm ZK notary signs tx within timewindow`() {
+    fun `confirm ZK notary signs valid tx`() {
         network {
             val megaCorpNode = startNode(providedName = CordaX500Name("MegaCorp", "Amsterdam", "NL"))
                     .getOrThrow() as InProcess
@@ -42,18 +37,11 @@ class ZKNotaryServiceTest {
             val stx = miniCorpNode.startFlow(DummyIssueAndMove(
                     defaultNotaryIdentity,
                     megaCorp,
-                    1234567890,
-                    TimeWindow.withTolerance(miniCorpNode.services.clock.instant(), 30.seconds))
-            ).getOrThrow()
+                    1234567890
+            )).getOrThrow()
 
             val sigs = miniCorpNode.startFlow(ZKNotaryFlow.Client(stx)).getOrThrow()
             assertTrue("tx should be signed by ZK notary") { sigs.any { it.by == defaultNotaryIdentity.owningKey } }
         }
-    }
-
-    @Test
-    @Ignore
-    fun `detect double spend`() {
-        throw NotImplementedError()
     }
 }
