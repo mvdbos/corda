@@ -2,6 +2,7 @@ package net.corda.notary.experimental.zkp
 
 import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.FlowSession
+import net.corda.core.flows.ZKNotaryFlow
 import net.corda.core.flows.ZKNotaryServiceFlow
 import net.corda.core.internal.notary.SinglePartyNotaryService
 import net.corda.core.schemas.MappedSchema
@@ -12,6 +13,8 @@ import net.corda.node.services.transactions.PersistentUniquenessProvider
 import java.security.PublicKey
 
 class ZKNotaryService(override val services: ServiceHubInternal, override val notaryIdentityKey: PublicKey) : SinglePartyNotaryService() {
+
+    override val initiatingFlow = ZKNotaryFlow.Client::class
     override val uniquenessProvider = PersistentUniquenessProvider(services.clock, services.database, services.cacheFactory)
 
     init {

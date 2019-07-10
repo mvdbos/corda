@@ -792,7 +792,7 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
             service.run {
                 tokenize()
                 runOnStop += ::stop
-                flowManager.registerInitiatedCoreFlowFactory(ZKNotaryFlow.Client::class, ::createServiceFlow)
+                flowManager.registerInitiatedCoreFlowFactory(initiatingFlow, ::createServiceFlow)
                 start()
             }
             return service
