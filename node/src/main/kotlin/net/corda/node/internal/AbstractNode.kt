@@ -807,7 +807,7 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
             service.run {
                 tokenize()
                 runOnStop += ::stop
-                flowManager.registerInitiatedCoreFlowFactory(initiatingFlow, ::createServiceFlow)
+                flowManager.registerInitiatedCoreFlowFactory(NotaryFlow.Client::class, ::createServiceFlow)
                 start()
             }
             return service
