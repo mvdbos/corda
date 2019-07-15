@@ -8,11 +8,14 @@ import net.corda.core.identity.Party
 import net.corda.core.node.ServiceHub
 import net.corda.core.serialization.SingletonSerializeAsToken
 import java.security.PublicKey
+import kotlin.reflect.KClass
 
 @DeleteForDJVM
 abstract class NotaryService : SingletonSerializeAsToken() {
     abstract val services: ServiceHub
     abstract val notaryIdentityKey: PublicKey
+
+    open val initiatingFlow: KClass<out FlowLogic<*>> = NotaryFlow.Client::class
 
     abstract fun start()
     abstract fun stop()
