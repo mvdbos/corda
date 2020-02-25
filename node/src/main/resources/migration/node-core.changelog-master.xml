@@ -31,4 +31,6 @@
 
     <include file="migration/node-core.changelog-v14-data.xml"/>
 
+    <include file="migration/node-core.changelog-v17.xml"/>
+
 </databaseChangeLog>

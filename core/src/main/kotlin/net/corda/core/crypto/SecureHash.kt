@@ -19,10 +19,10 @@ import java.util.function.Supplier
 @KeepForDJVM
 @CordaSerializable
 sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
-    /** SHA-256 is part of the SHA-2 hash function family. Generated hash is fixed size, 256-bits (32-bytes). */
+    /** SHA-256 is part of the SHA-2 hash function family. Generated hash is size [digestLength]. */
     class SHA256(bytes: ByteArray) : SecureHash(bytes) {
         init {
-            require(bytes.size == 32) { "Invalid hash size, must be 32 bytes" }
+            require(bytes.size == digestLength) { "Invalid hash size, must be $digestLength bytes" }
         }
 
         override fun equals(other: Any?): Boolean {
@@ -65,13 +65,14 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
         fun parse(str: String?): SHA256 {
             return str?.toUpperCase()?.parseAsHex()?.let {
                 when (it.size) {
-                    32 -> SHA256(it)
-                    else -> throw IllegalArgumentException("Provided string is ${it.size} bytes not 32 bytes in hex: $str")
+                    digestLength -> SHA256(it)
+                    else -> throw IllegalArgumentException("Provided string is ${it.size} bytes not $digestLength bytes in hex: $str")
                 }
             } ?: throw IllegalArgumentException("Provided string is null")
         }
 
         private val sha256MessageDigest = SHA256DigestSupplier()
+        val digestLength = sha256MessageDigest.get().digestLength
 
         /**
          * Computes the SHA-256 hash value of the [ByteArray].
@@ -99,31 +100,31 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          */
         @DeleteForDJVM
         @JvmStatic
-        fun randomSHA256() = sha256(secureRandomBytes(32))
+        fun randomSHA256() = sha256(secureRandomBytes(digestLength))
 
         /**
-         * A SHA-256 hash value consisting of 32 0x00 bytes.
+         * A SHA-256 hash value consisting of [digestLength] 0x00 bytes.
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val zeroHash: SHA256 = SecureHash.SHA256(ByteArray(32) { 0.toByte() })
+        val zeroHash: SHA256 = SecureHash.SHA256(ByteArray(digestLength) { 0.toByte() })
 
         /**
-         * A SHA-256 hash value consisting of 32 0x00 bytes.
+         * A SHA-256 hash value consisting of [digestLength] 0x00 bytes.
          * This function is provided for API stability.
          */
         @Suppress("Unused")
         fun getZeroHash(): SHA256 = zeroHash
 
         /**
-         * A SHA-256 hash value consisting of 32 0xFF bytes.
+         * A SHA-256 hash value consisting of [digestLength] 0xFF bytes.
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val allOnesHash: SHA256 = SecureHash.SHA256(ByteArray(32) { 255.toByte() })
+        val allOnesHash: SHA256 = SecureHash.SHA256(ByteArray(digestLength) { 255.toByte() })
 
         /**
-         * A SHA-256 hash value consisting of 32 0xFF bytes.
+         * A SHA-256 hash value consisting of [digestLength] 0xFF bytes.
          * This function is provided for API stability.
          */
         @Suppress("Unused")
@@ -155,5 +156,5 @@ private class SHA256DigestSupplier : Supplier<MessageDigest> {
 // Declaring this as "object : FastThreadLocal<>" would have
 // created an extra public class in the API definition.
 private class LocalSHA256Digest : FastThreadLocal<MessageDigest>() {
-    override fun initialValue(): MessageDigest = MessageDigest.getInstance("SHA-256")
+    override fun initialValue(): MessageDigest = MessageDigest.getInstance("SHA-384")
 }
