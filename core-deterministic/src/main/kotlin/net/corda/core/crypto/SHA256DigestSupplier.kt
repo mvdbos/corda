@@ -7,3 +7,8 @@ import java.util.function.Supplier
 private class SHA256DigestSupplier : Supplier<MessageDigest> {
     override fun get(): MessageDigest = MessageDigest.getInstance("SHA-256")
 }
+
+@Suppress("unused")
+private class SHA384DigestSupplier : Supplier<MessageDigest> {
+    override fun get(): MessageDigest = MessageDigest.getInstance("SHA-384")
+}

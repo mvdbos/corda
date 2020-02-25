@@ -67,7 +67,16 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          * Append a second hash value to this hash value, and then compute the SHA-256 hash of the result.
          * @param other The hash to append to this one.
          */
-        fun hashConcat(other: SHA256): SecureHash.SHA256 = (this.bytes + other.bytes).sha256()
+        fun hashConcat(other: SHA256): SHA256 = (this.bytes + other.bytes).sha256()
+    }
+
+    inline fun < reified T : SecureHash> hashConcat(other: T): SecureHash {
+        return when(T::class.java) {
+            SHA256::class.java -> (this.bytes + other.bytes).sha256()
+            SHA384::class.java -> (this.bytes + other.bytes).sha384()
+            else -> throw IllegalArgumentException("Can only concatenate known hash types")
+        }
+
     }
 
     /**
@@ -145,7 +154,7 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val zeroHash: SHA256 = SecureHash.SHA256(ByteArray(sha384DigestLength) { 0.toByte() })
+        val zeroHash: SHA256 = SHA256(ByteArray(sha384DigestLength) { 0.toByte() })
 
         /**
          * A SHA-256 hash value consisting of [sha384DigestLength] 0x00 bytes.
@@ -159,7 +168,7 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val allOnesHash: SHA256 = SecureHash.SHA256(ByteArray(sha384DigestLength) { 255.toByte() })
+        val allOnesHash: SHA256 = SHA256(ByteArray(sha384DigestLength) { 255.toByte() })
 
         /**
          * A SHA-256 hash value consisting of [sha384DigestLength] 0xFF bytes.
@@ -167,6 +176,55 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          */
         @Suppress("Unused")
         fun getAllOnesHash(): SHA256 = allOnesHash
+
+        /**
+         * Computes the SHA-384 hash of the [ByteArray], and then computes the SHA-384 hash of the hash.
+         * @param bytes The [ByteArray] to hash.
+         */
+        @JvmStatic
+        fun sha384Twice(bytes: ByteArray) = sha384(sha384(bytes).bytes)
+
+        /**
+         * Computes the SHA-384 hash of the [String]'s UTF-8 byte contents.
+         * @param str [String] whose UTF-8 contents will be hashed.
+         */
+        @JvmStatic
+        fun sha384(str: String) = sha384(str.toByteArray())
+
+        /**
+         * Generates a random SHA-384 value.
+         */
+        @DeleteForDJVM
+        @JvmStatic
+        fun randomSHA384() = sha384(secureRandomBytes(sha384DigestLength))
+
+        /**
+         * A SHA-384 hash value consisting of [sha384DigestLength] 0x00 bytes.
+         * This field provides more intuitive access from Java.
+         */
+        @JvmField
+        val zeroHash384: SHA384 = SHA384(ByteArray(sha384DigestLength) { 0.toByte() })
+
+        /**
+         * A SHA-384 hash value consisting of [sha384DigestLength] 0x00 bytes.
+         * This function is provided for API stability.
+         */
+        @Suppress("Unused")
+        fun getZeroHash384(): SHA384 = zeroHash384
+
+        /**
+         * A SHA-384 hash value consisting of [sha384DigestLength] 0xFF bytes.
+         * This field provides more intuitive access from Java.
+         */
+        @JvmField
+        val allOnesHash384: SHA384 = SHA384(ByteArray(sha384DigestLength) { 255.toByte() })
+
+        /**
+         * A SHA-384 hash value consisting of [sha384DigestLength] 0xFF bytes.
+         * This function is provided for API stability.
+         */
+        @Suppress("Unused")
+        fun getAllOnesHash384(): SHA384 = allOnesHash384
     }
 }
 
