@@ -9,6 +9,7 @@ import net.corda.core.serialization.CordaSerializable
 import net.corda.core.utilities.OpaqueBytes
 import net.corda.core.utilities.parseAsHex
 import net.corda.core.utilities.toHexString
+import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.function.Supplier
@@ -37,12 +38,6 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
         // This is an efficient hashCode, because there is no point in performing a hash calculation on a cryptographic hash.
         // It just takes the first 4 bytes and transforms them into an Int.
         override fun hashCode() = ByteBuffer.wrap(bytes).int
-
-        /**
-         * Append a second hash value to this hash value, and then compute the SHA-256 hash of the result.
-         * @param other The hash to append to this one.
-         */
-        fun hashConcat(other: SHA384): SHA384 = (this.bytes + other.bytes).sha384()
     }
 
     /** SHA-256 is part of the SHA-2 hash function family. Generated hash is size [sha256DigestLength]. */
@@ -62,21 +57,26 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
         // This is an efficient hashCode, because there is no point in performing a hash calculation on a cryptographic hash.
         // It just takes the first 4 bytes and transforms them into an Int.
         override fun hashCode() = ByteBuffer.wrap(bytes).int
-
-        /**
-         * Append a second hash value to this hash value, and then compute the SHA-256 hash of the result.
-         * @param other The hash to append to this one.
-         */
-        fun hashConcat(other: SHA256): SHA256 = (this.bytes + other.bytes).sha256()
     }
 
-    inline fun < reified T : SecureHash> hashConcat(other: T): SecureHash {
-        return when(T::class.java) {
-            SHA256::class.java -> (this.bytes + other.bytes).sha256()
-            SHA384::class.java -> (this.bytes + other.bytes).sha384()
-            else -> throw IllegalArgumentException("Can only concatenate known hash types")
+    inline fun <reified T : SecureHash> hashConcat(other: T): T {
+        return when(this) {
+            is SHA256 -> (this.bytes + other.bytes).sha256() as T
+            is SHA384 -> (this.bytes + other.bytes).sha384() as T
+        }
+    }
+
+    fun combinedHash(components: Iterable<SecureHash>): SecureHash {
+        val stream = ByteArrayOutputStream()
+        components.forEach {
+            stream.write(it.bytes)
         }
 
+        // Return hash type based on type of first component. If none, default to SHA256
+        return when((components.firstOrNull() ?: SecureHash.SHA256(ByteArray(0)))) {
+            is SecureHash.SHA256 -> {stream.toByteArray().sha256()}
+            is SecureHash.SHA384 -> {stream.toByteArray().sha384()}
+        }
     }
 
     /**
@@ -112,7 +112,7 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
         val sha256DigestLength = sha256MessageDigest.get().digestLength
 
         private val sha384MessageDigest = SHA384DigestSupplier()
-        val sha384DigestLength = sha256MessageDigest.get().digestLength
+        val sha384DigestLength = sha384MessageDigest.get().digestLength
 
         /**
          * Computes the SHA-256 hash value of the [ByteArray].
@@ -154,7 +154,7 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val zeroHash: SHA256 = SHA256(ByteArray(sha384DigestLength) { 0.toByte() })
+        val zeroHash: SHA256 = SHA256(ByteArray(sha256DigestLength) { 0.toByte() })
 
         /**
          * A SHA-256 hash value consisting of [sha384DigestLength] 0x00 bytes.
@@ -168,7 +168,7 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val allOnesHash: SHA256 = SHA256(ByteArray(sha384DigestLength) { 255.toByte() })
+        val allOnesHash: SHA256 = SHA256(ByteArray(sha256DigestLength) { 255.toByte() })
 
         /**
          * A SHA-256 hash value consisting of [sha384DigestLength] 0xFF bytes.

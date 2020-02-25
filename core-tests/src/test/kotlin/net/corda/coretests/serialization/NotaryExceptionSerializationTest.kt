@@ -21,7 +21,7 @@ class NotaryExceptionSerializationTest {
 
     @Test(timeout=300_000)
 	fun testSerializationRoundTrip() {
-        val txhash = SecureHash.randomSHA256()
+        val txhash = SecureHash.randomSHA384()
         val stateHistory: Map<StateRef, StateConsumptionDetails> = mapOf(
                 StateRef(txhash, 0) to StateConsumptionDetails(txhash.sha256())
         )

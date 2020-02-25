@@ -297,7 +297,7 @@ class TimedFlowTests {
             if (requestsReceived.getAndIncrement() == 0) {
                 log.info("Ignoring")
                 // Waiting forever
-                callingFlow.stateMachine.suspend(FlowIORequest.WaitForLedgerCommit(SecureHash.randomSHA256()), false)
+                callingFlow.stateMachine.suspend(FlowIORequest.WaitForLedgerCommit(SecureHash.randomSHA384()), false)
             } else {
                 log.info("Processing")
                 return super.commitInputStates(inputs, txId, caller, requestSignature, timeWindow, references)

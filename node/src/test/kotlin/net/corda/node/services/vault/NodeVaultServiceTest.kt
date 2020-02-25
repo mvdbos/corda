@@ -962,7 +962,7 @@ class NodeVaultServiceTest {
         fun makeCash(amount: Amount<Currency>, issuer: AbstractParty, depositRef: Byte = 1) =
                 StateAndRef(
                         TransactionState(Cash.State(amount `issued by` issuer.ref(depositRef), identity.party), Cash.PROGRAM_ID, DUMMY_NOTARY, constraint = AlwaysAcceptAttachmentConstraint),
-                        StateRef(SecureHash.randomSHA256(), Random().nextInt(32))
+                        StateRef(SecureHash.randomSHA384(), Random().nextInt(32))
                 )
 
         val cashIssued = setOf<StateAndRef<ContractState>>(makeCash(100.DOLLARS, dummyCashIssuer.party))

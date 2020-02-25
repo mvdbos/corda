@@ -29,11 +29,11 @@ class VaultUpdateTests {
         override val participants: List<AbstractParty> = emptyList()
     }
 
-    private val stateRef0 = StateRef(SecureHash.randomSHA256(), 0)
-    private val stateRef1 = StateRef(SecureHash.randomSHA256(), 1)
-    private val stateRef2 = StateRef(SecureHash.randomSHA256(), 2)
-    private val stateRef3 = StateRef(SecureHash.randomSHA256(), 3)
-    private val stateRef4 = StateRef(SecureHash.randomSHA256(), 4)
+    private val stateRef0 = StateRef(SecureHash.randomSHA384(), 0)
+    private val stateRef1 = StateRef(SecureHash.randomSHA384(), 1)
+    private val stateRef2 = StateRef(SecureHash.randomSHA384(), 2)
+    private val stateRef3 = StateRef(SecureHash.randomSHA384(), 3)
+    private val stateRef4 = StateRef(SecureHash.randomSHA384(), 4)
 
     private val stateAndRef0 = StateAndRef(TransactionState(DummyState(), DUMMY_PROGRAM_ID, DUMMY_NOTARY, constraint = AlwaysAcceptAttachmentConstraint), stateRef0)
     private val stateAndRef1 = StateAndRef(TransactionState(DummyState(), DUMMY_PROGRAM_ID, DUMMY_NOTARY, constraint = AlwaysAcceptAttachmentConstraint), stateRef1)

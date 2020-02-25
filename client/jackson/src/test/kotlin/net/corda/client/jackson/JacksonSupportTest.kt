@@ -217,8 +217,8 @@ class JacksonSupportTest(@Suppress("unused") private val name: String, factory: 
 	fun TransactionSignature() {
         val signatureMetadata = SignatureMetadata(1, 1)
         val partialMerkleTree = PartialMerkleTree(PartialTree.Node(
-                left = PartialTree.Leaf(SecureHash.randomSHA256()),
-                right = PartialTree.IncludedLeaf(SecureHash.randomSHA256())
+                left = PartialTree.Leaf(SecureHash.randomSHA384()),
+                right = PartialTree.IncludedLeaf(SecureHash.randomSHA384())
         ))
         val transactionSignature = TransactionSignature(secureRandomBytes(128), BOB_PUBKEY, signatureMetadata, partialMerkleTree)
         val json = mapper.valueToTree<ObjectNode>(transactionSignature)
@@ -251,12 +251,12 @@ class JacksonSupportTest(@Suppress("unused") private val name: String, factory: 
 
         val wtx = TransactionBuilder(
                 notary = DUMMY_NOTARY,
-                inputs = mutableListOf(StateRef(SecureHash.randomSHA256(), 1)),
+                inputs = mutableListOf(StateRef(SecureHash.randomSHA384(), 1)),
                 attachments = mutableListOf(attachmentId),
                 outputs = mutableListOf(createTransactionState()),
                 commands = mutableListOf(Command(DummyCommandData, listOf(BOB_PUBKEY))),
                 window = TimeWindow.fromStartAndDuration(Instant.now(), 1.hours),
-                references = mutableListOf(StateRef(SecureHash.randomSHA256(), 0)),
+                references = mutableListOf(StateRef(SecureHash.randomSHA384(), 0)),
                 privacySalt = net.corda.core.contracts.PrivacySalt()
         ).toWireTransaction(services)
         val stx = sign(wtx)
@@ -356,7 +356,7 @@ class JacksonSupportTest(@Suppress("unused") private val name: String, factory: 
 
     @Test(timeout=300_000)
 	fun `PartialTree IncludedLeaf`() {
-        val includedLeaf = PartialTree.IncludedLeaf(SecureHash.randomSHA256())
+        val includedLeaf = PartialTree.IncludedLeaf(SecureHash.randomSHA384())
         val json = mapper.valueToTree<ObjectNode>(includedLeaf)
         assertThat(json.assertHasOnlyFields("includedLeaf")[0].textValue()).isEqualTo(includedLeaf.hash.toString())
         assertThat(mapper.convertValue<PartialTree.IncludedLeaf>(json)).isEqualTo(includedLeaf)
@@ -364,7 +364,7 @@ class JacksonSupportTest(@Suppress("unused") private val name: String, factory: 
 
     @Test(timeout=300_000)
 	fun `PartialTree Leaf`() {
-        val leaf = PartialTree.Leaf(SecureHash.randomSHA256())
+        val leaf = PartialTree.Leaf(SecureHash.randomSHA384())
         val json = mapper.valueToTree<ObjectNode>(leaf)
         assertThat(json.assertHasOnlyFields("leaf")[0].textValue()).isEqualTo(leaf.hash.toString())
         assertThat(mapper.convertValue<PartialTree.Leaf>(json)).isEqualTo(leaf)
@@ -373,8 +373,8 @@ class JacksonSupportTest(@Suppress("unused") private val name: String, factory: 
     @Test(timeout=300_000)
 	fun `simple PartialTree Node`() {
         val node = PartialTree.Node(
-                left = PartialTree.Leaf(SecureHash.randomSHA256()),
-                right = PartialTree.IncludedLeaf(SecureHash.randomSHA256())
+                left = PartialTree.Leaf(SecureHash.randomSHA384()),
+                right = PartialTree.IncludedLeaf(SecureHash.randomSHA384())
         )
         val json = mapper.valueToTree<ObjectNode>(node)
         println(mapper.writeValueAsString(json))
@@ -387,10 +387,10 @@ class JacksonSupportTest(@Suppress("unused") private val name: String, factory: 
     @Test(timeout=300_000)
 	fun `complex PartialTree Node`() {
         val node = PartialTree.Node(
-                left = PartialTree.IncludedLeaf(SecureHash.randomSHA256()),
+                left = PartialTree.IncludedLeaf(SecureHash.randomSHA384()),
                 right = PartialTree.Node(
-                        left = PartialTree.Leaf(SecureHash.randomSHA256()),
-                        right = PartialTree.Leaf(SecureHash.randomSHA256())
+                        left = PartialTree.Leaf(SecureHash.randomSHA384()),
+                        right = PartialTree.Leaf(SecureHash.randomSHA384())
                 )
         )
         val json = mapper.valueToTree<ObjectNode>(node)
@@ -411,6 +411,11 @@ class JacksonSupportTest(@Suppress("unused") private val name: String, factory: 
                 state = "NY",
                 country = "US"
         ))
+    }
+
+    @Test(timeout=300_000)
+    fun `SecureHash SHA384`() {
+        testToStringSerialisation(SecureHash.randomSHA384())
     }
 
     @Test(timeout=300_000)
@@ -691,8 +696,8 @@ class JacksonSupportTest(@Suppress("unused") private val name: String, factory: 
 
     private fun sign(ctx: CoreTransaction): SignedTransaction {
         val partialMerkleTree = PartialMerkleTree(PartialTree.Node(
-                left = PartialTree.Leaf(SecureHash.randomSHA256()),
-                right = PartialTree.IncludedLeaf(SecureHash.randomSHA256())
+                left = PartialTree.Leaf(SecureHash.randomSHA384()),
+                right = PartialTree.IncludedLeaf(SecureHash.randomSHA384())
         ))
         val signatures = listOf(
                 TransactionSignature(ByteArray(1), ALICE_PUBKEY, SignatureMetadata(1, Crypto.findSignatureScheme(ALICE_PUBKEY).schemeNumberID), partialMerkleTree),

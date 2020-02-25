@@ -342,9 +342,9 @@ class InteractiveShellIntegrationTest {
             val alice = startNode(providedName = ALICE_NAME).getOrThrow()
             (alice.baseDirectory / NodeStartup.LOGS_DIRECTORY_NAME).createDirectories()
             val stateRefs = setOf(
-                StateRef(SecureHash.randomSHA256(), 0),
-                StateRef(SecureHash.randomSHA256(), 1),
-                StateRef(SecureHash.randomSHA256(), 2)
+                StateRef(SecureHash.randomSHA384(), 0),
+                StateRef(SecureHash.randomSHA384(), 1),
+                StateRef(SecureHash.randomSHA384(), 2)
             )
             assertThrows<TimeoutException> {
                 alice.rpc.startFlow(::WaitForStateConsumptionFlow, stateRefs).returnValue.getOrThrow(10.seconds)

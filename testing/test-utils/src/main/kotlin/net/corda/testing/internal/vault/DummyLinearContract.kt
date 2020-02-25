@@ -35,7 +35,7 @@ class DummyLinearContract : Contract {
             val linearNumber: Long = 123L,
             val linearTimestamp: java.time.Instant = LocalDateTime.now().toInstant(UTC),
             val linearBoolean: Boolean = true,
-            val nonce: SecureHash = SecureHash.randomSHA256()) : LinearState, QueryableState {
+            val nonce: SecureHash = SecureHash.randomSHA384()) : LinearState, QueryableState {
         override fun supportedSchemas(): Iterable<MappedSchema> = listOf(DummyLinearStateSchemaV1, DummyLinearStateSchemaV2)
         override fun generateMappedObject(schema: MappedSchema): PersistentState {
             return when (schema) {

@@ -37,7 +37,7 @@ class TransactionVerificationExceptionSerialisationTests {
 
     private val context get() = AMQP_RPC_CLIENT_CONTEXT
 
-    private val txid = SecureHash.allOnesHash
+    private val txid = SecureHash.allOnesHash384
     private val attachmentHash = SecureHash.allOnesHash
     private val factory = defaultFactory()
 
@@ -208,7 +208,7 @@ class TransactionVerificationExceptionSerialisationTests {
 	fun transactionNetworkParameterOrderingExceptionTest() {
         val exception = TransactionVerificationException.TransactionNetworkParameterOrderingException(
                 txid,
-                StateRef(SecureHash.zeroHash, 1),
+                StateRef(SecureHash.zeroHash384, 1),
                 testNetworkParameters(),
                 testNetworkParameters())
         val exception2 = DeserializationInput(factory)

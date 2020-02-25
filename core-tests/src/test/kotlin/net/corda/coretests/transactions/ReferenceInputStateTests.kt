@@ -200,7 +200,7 @@ class ReferenceStateTests {
     @Test(timeout=300_000)
 	fun `state ref cannot be a reference input and regular input in the same transaction`() {
         val state = ExampleState(ALICE_PARTY, "HELLO CORDA")
-        val stateAndRef = StateAndRef(TransactionState(state, CONTRACT_ID, DUMMY_NOTARY, constraint = AlwaysAcceptAttachmentConstraint), StateRef(SecureHash.zeroHash, 0))
+        val stateAndRef = StateAndRef(TransactionState(state, CONTRACT_ID, DUMMY_NOTARY, constraint = AlwaysAcceptAttachmentConstraint), StateRef(SecureHash.zeroHash384, 0))
         assertThatIllegalArgumentException().isThrownBy {
             TransactionBuilder(notary = DUMMY_NOTARY)
                     .addInputState(stateAndRef).addReferenceState(stateAndRef.referenced())

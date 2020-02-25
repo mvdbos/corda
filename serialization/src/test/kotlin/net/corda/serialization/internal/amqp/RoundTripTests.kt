@@ -152,7 +152,7 @@ class RoundTripTests {
                 "foo",
                 party
         )
-        val ref = StateRef(SecureHash.zeroHash, 0)
+        val ref = StateRef(SecureHash.zeroHash384, 0)
         val instance = OnMembershipChanged(StateAndRef(
                 transactionState,
                 ref

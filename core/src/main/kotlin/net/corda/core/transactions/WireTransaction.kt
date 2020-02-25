@@ -274,7 +274,7 @@ class WireTransaction(componentGroups: List<ComponentGroup>, val privacySalt: Pr
         // Even if empty and not used, we should at least send oneHashes for each known
         // or received but unknown (thus, bigger than known ordinal) component groups.
         for (i in 0..componentGroups.map { it.groupIndex }.max()!!) {
-            val root = groupsMerkleRoots[i] ?: SecureHash.allOnesHash
+            val root = groupsMerkleRoots[i] ?: SecureHash.allOnesHash384
             listOfLeaves.add(root)
         }
         listOfLeaves

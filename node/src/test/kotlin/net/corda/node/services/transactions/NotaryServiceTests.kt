@@ -90,7 +90,7 @@ class NotaryServiceTests {
                                         party: Party, notary: Party,
                                         paramsHash: SecureHash? = node.services.networkParametersService.currentHash,
                                         numberOfInputs: Int = 10_005): SignedTransaction {
-            val txHash = SecureHash.randomSHA256()
+            val txHash = SecureHash.randomSHA384()
             val inputs = (1..numberOfInputs).map { StateRef(txHash, it) }
             val tx = if (paramsHash != null) {
                 NotaryChangeTransactionBuilder(inputs, notary, party, paramsHash).build()

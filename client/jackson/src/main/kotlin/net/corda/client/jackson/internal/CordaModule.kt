@@ -81,6 +81,7 @@ class CordaModule : SimpleModule("corda-core") {
         context.setMixInAnnotations(PublicKey::class.java, PublicKeyMixin::class.java)
         context.setMixInAnnotations(ByteSequence::class.java, ByteSequenceMixin::class.java)
         context.setMixInAnnotations(SecureHash.SHA256::class.java, SecureHashSHA256Mixin::class.java)
+        context.setMixInAnnotations(SecureHash.SHA384::class.java, SecureHashSHA384Mixin::class.java)
         context.setMixInAnnotations(SecureHash::class.java, SecureHashSHA256Mixin::class.java)
         context.setMixInAnnotations(SerializedBytes::class.java, SerializedBytesMixin::class.java)
         context.setMixInAnnotations(DigitalSignature.WithKey::class.java, ByteSequenceWithPropertiesMixin::class.java)
@@ -441,6 +442,10 @@ private interface NodeInfoMixin
 @ToStringSerialize
 @JsonDeserialize(using = JacksonSupport.SecureHashDeserializer::class)
 private interface SecureHashSHA256Mixin
+
+@ToStringSerialize
+@JsonDeserialize(using = JacksonSupport.SecureHashDeserializer::class)
+private interface SecureHashSHA384Mixin
 
 @JsonSerialize(using = JacksonSupport.PublicKeySerializer::class)
 @JsonDeserialize(using = JacksonSupport.PublicKeyDeserializer::class)

@@ -6,7 +6,7 @@ import net.corda.core.KeepForDJVM
 import net.corda.core.contracts.*
 import net.corda.core.crypto.SecureHash
 import net.corda.core.crypto.TransactionSignature
-import net.corda.core.crypto.sha256
+import net.corda.core.crypto.sha384
 import net.corda.core.identity.Party
 import net.corda.core.node.NetworkParameters
 import net.corda.core.node.ServiceHub
@@ -68,7 +68,7 @@ data class NotaryChangeWireTransaction(
      */
     override val id: SecureHash by lazy {
         serializedComponents.map { component ->
-            component.bytes.sha256()
+            component.bytes.sha384()
         }.reduce { combinedHash, componentHash ->
             combinedHash.hashConcat(componentHash)
         }

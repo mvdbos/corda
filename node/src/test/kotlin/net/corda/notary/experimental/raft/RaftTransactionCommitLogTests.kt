@@ -67,8 +67,8 @@ class RaftTransactionCommitLogTests {
 	fun `stores entries correctly`() {
         val client = cluster.last().client
 
-        val states = listOf(StateRef(SecureHash.randomSHA256(), 0), StateRef(SecureHash.randomSHA256(), 0))
-        val txId: SecureHash = SecureHash.randomSHA256()
+        val states = listOf(StateRef(SecureHash.randomSHA384(), 0), StateRef(SecureHash.randomSHA384(), 0))
+        val txId: SecureHash = SecureHash.randomSHA384()
         val requestingPartyName = ALICE_NAME
         val requestSignature = ByteArray(1024)
 
@@ -87,9 +87,9 @@ class RaftTransactionCommitLogTests {
 	fun `returns conflict for duplicate entries`() {
         val client = cluster.last().client
 
-        val states = listOf(StateRef(SecureHash.randomSHA256(), 0), StateRef(SecureHash.randomSHA256(), 0))
-        val txIdFirst = SecureHash.randomSHA256()
-        val txIdSecond = SecureHash.randomSHA256()
+        val states = listOf(StateRef(SecureHash.randomSHA384(), 0), StateRef(SecureHash.randomSHA384(), 0))
+        val txIdFirst = SecureHash.randomSHA384()
+        val txIdSecond = SecureHash.randomSHA384()
         val requestingPartyName = ALICE_NAME
         val requestSignature = ByteArray(1024)
 
@@ -107,8 +107,8 @@ class RaftTransactionCommitLogTests {
 	fun `transactions outside their time window are rejected`() {
         val client = cluster.last().client
 
-        val states = listOf(StateRef(SecureHash.randomSHA256(), 0), StateRef(SecureHash.randomSHA256(), 0))
-        val txId: SecureHash = SecureHash.randomSHA256()
+        val states = listOf(StateRef(SecureHash.randomSHA384(), 0), StateRef(SecureHash.randomSHA384(), 0))
+        val txId: SecureHash = SecureHash.randomSHA384()
         val requestingPartyName = ALICE_NAME
         val requestSignature = ByteArray(1024)
         val timeWindow = TimeWindow.fromOnly(Instant.MAX)
@@ -124,8 +124,8 @@ class RaftTransactionCommitLogTests {
 	fun `transactions can be re-notarised outside their time window`() {
         val client = cluster.last().client
 
-        val states = listOf(StateRef(SecureHash.randomSHA256(), 0), StateRef(SecureHash.randomSHA256(), 0))
-        val txId: SecureHash = SecureHash.randomSHA256()
+        val states = listOf(StateRef(SecureHash.randomSHA384(), 0), StateRef(SecureHash.randomSHA384(), 0))
+        val txId: SecureHash = SecureHash.randomSHA384()
         val requestingPartyName = ALICE_NAME
         val requestSignature = ByteArray(1024)
         val timeWindow = TimeWindow.fromOnly(Instant.MIN)

@@ -269,7 +269,7 @@ fun componentHash(opaqueBytes: OpaqueBytes, privacySalt: PrivacySalt, componentG
         componentHash(computeNonce(privacySalt, componentGroupIndex, internalIndex), opaqueBytes)
 
 /** Return the SHA256(SHA256(nonce || serializedComponent)). */
-fun componentHash(nonce: SecureHash, opaqueBytes: OpaqueBytes): SecureHash = SecureHash.sha256Twice(nonce.bytes + opaqueBytes.bytes)
+fun componentHash(nonce: SecureHash, opaqueBytes: OpaqueBytes): SecureHash = SecureHash.sha384Twice(nonce.bytes + opaqueBytes.bytes)
 
 /**
  * Serialise the object and return the hash of the serialized bytes. Note that the resulting hash may not be deterministic
@@ -286,5 +286,5 @@ fun <T : Any> serializedHash(x: T): SecureHash = x.serialize(context = Serializa
  * @param internalIndex the internal index of this object in its corresponding components list.
  * @return SHA256(SHA256(privacySalt || groupIndex || internalIndex))
  */
-fun computeNonce(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = SecureHash.sha256Twice(privacySalt.bytes + ByteBuffer.allocate(8).putInt(groupIndex).putInt(internalIndex).array())
+fun computeNonce(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = SecureHash.sha384Twice(privacySalt.bytes + ByteBuffer.allocate(8).putInt(groupIndex).putInt(internalIndex).array())
 

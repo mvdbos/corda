@@ -323,7 +323,7 @@ class ObligationTests {
 
     private inline fun <reified T : ContractState> getStateAndRef(state: T, contractClassName: ContractClassName): StateAndRef<T> {
         val txState = TransactionState(state, contractClassName, DUMMY_NOTARY, constraint = AlwaysAcceptAttachmentConstraint)
-        return StateAndRef(txState, StateRef(SecureHash.randomSHA256(), 0))
+        return StateAndRef(txState, StateRef(SecureHash.randomSHA384(), 0))
 
     }
 

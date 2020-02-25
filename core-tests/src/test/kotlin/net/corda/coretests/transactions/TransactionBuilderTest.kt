@@ -97,7 +97,7 @@ class TransactionBuilderTest {
         doReturn(unsignedAttachment).whenever(attachments).openAttachment(contractAttachmentId)
 
         val referenceState = TransactionState(DummyState(), DummyContract.PROGRAM_ID, notary)
-        val referenceStateRef = StateRef(SecureHash.randomSHA256(), 1)
+        val referenceStateRef = StateRef(SecureHash.randomSHA384(), 1)
         val builder = TransactionBuilder(notary)
                 .addReferenceState(StateAndRef(referenceState, referenceStateRef).referenced())
                 .addOutputState(TransactionState(DummyState(), DummyContract.PROGRAM_ID, notary))

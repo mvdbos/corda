@@ -5,7 +5,7 @@ import com.nhaarman.mockito_kotlin.mock
 import com.nhaarman.mockito_kotlin.whenever
 import net.corda.core.contracts.*
 import net.corda.core.crypto.*
-import net.corda.core.crypto.SecureHash.Companion.zeroHash
+import net.corda.core.crypto.SecureHash.Companion.zeroHash384
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.identity.Party
 import net.corda.core.node.NotaryInfo
@@ -53,7 +53,7 @@ class PartialMerkleTreeTest {
     val testSerialization = SerializationEnvironmentRule()
 
     private val nodes = "abcdef"
-    private lateinit var hashed: List<SecureHash.SHA256>
+    private lateinit var hashed: List<SecureHash>
     private lateinit var expectedRoot: SecureHash
     private lateinit var merkleTree: MerkleTree
     private lateinit var testLedger: LedgerDSL<TestTransactionDSLInterpreter, TestLedgerDSLInterpreter>
@@ -62,8 +62,8 @@ class PartialMerkleTreeTest {
 
     @Before
     fun init() {
-        hashed = nodes.map { it.serialize().sha256() }
-        expectedRoot = MerkleTree.getMerkleTree(hashed.toMutableList() + listOf(zeroHash, zeroHash)).hash
+        hashed = nodes.map { it.serialize().sha384() }
+        expectedRoot = MerkleTree.getMerkleTree(hashed.toMutableList() + listOf(zeroHash384, zeroHash384)).hash
         merkleTree = MerkleTree.getMerkleTree(hashed)
 
         testLedger = MockServices(
@@ -112,7 +112,7 @@ class PartialMerkleTreeTest {
 
     @Test(timeout=300_000)
 	fun `building Merkle tree one node`() {
-        val node = 'a'.serialize().sha256()
+        val node = 'a'.serialize().sha384()
         val mt = MerkleTree.getMerkleTree(listOf(node))
         assertEquals(node, mt.hash)
     }
@@ -121,7 +121,7 @@ class PartialMerkleTreeTest {
 	fun `building Merkle tree odd number of nodes`() {
         val odd = hashed.subList(0, 3)
         val h1 = hashed[0].hashConcat(hashed[1])
-        val h2 = hashed[2].hashConcat(zeroHash)
+        val h2 = hashed[2].hashConcat(zeroHash384)
         val expected = h1.hashConcat(h2)
         val mt = MerkleTree.getMerkleTree(odd)
         assertEquals(mt.hash, expected)
@@ -129,7 +129,7 @@ class PartialMerkleTreeTest {
 
     @Test(timeout=300_000)
 	fun `check full tree`() {
-        val h = SecureHash.randomSHA256()
+        val h = SecureHash.randomSHA384()
         val left = MerkleTree.Node(h, MerkleTree.Node(h, MerkleTree.Leaf(h), MerkleTree.Leaf(h)),
                 MerkleTree.Node(h, MerkleTree.Leaf(h), MerkleTree.Leaf(h)))
         val right = MerkleTree.Node(h, MerkleTree.Leaf(h), MerkleTree.Leaf(h))
@@ -296,47 +296,47 @@ class PartialMerkleTreeTest {
     @Test(timeout=300_000)
 	fun `Find leaf index`() {
         // A Merkle tree with 20 leaves.
-        val sampleLeaves = IntStream.rangeClosed(0, 19).toList().map { SecureHash.sha256(it.toString()) }
+        val sampleLeaves = IntStream.rangeClosed(0, 19).toList().map { SecureHash.sha384(it.toString()) }
         val merkleTree = MerkleTree.getMerkleTree(sampleLeaves)
 
         // Provided hashes are not in the tree.
-        assertFailsWith<MerkleTreeException> { PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha256("20"))) }
+        assertFailsWith<MerkleTreeException> { PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha384("20"))) }
         // One of the provided hashes is not in the tree.
-        assertFailsWith<MerkleTreeException> { PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha256("20"), SecureHash.sha256("1"), SecureHash.sha256("5"))) }
+        assertFailsWith<MerkleTreeException> { PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha384("20"), SecureHash.sha384("1"), SecureHash.sha384("5"))) }
 
-        val pmt = PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha256("1"), SecureHash.sha256("5"), SecureHash.sha256("0"), SecureHash.sha256("19")))
+        val pmt = PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha384("1"), SecureHash.sha384("5"), SecureHash.sha384("0"), SecureHash.sha384("19")))
         // First leaf.
-        assertEquals(0, pmt.leafIndex(SecureHash.sha256("0")))
+        assertEquals(0, pmt.leafIndex(SecureHash.sha384("0")))
         // Second leaf.
-        assertEquals(1, pmt.leafIndex(SecureHash.sha256("1")))
+        assertEquals(1, pmt.leafIndex(SecureHash.sha384("1")))
         // A random leaf.
-        assertEquals(5, pmt.leafIndex(SecureHash.sha256("5")))
+        assertEquals(5, pmt.leafIndex(SecureHash.sha384("5")))
         // The last leaf.
-        assertEquals(19, pmt.leafIndex(SecureHash.sha256("19")))
+        assertEquals(19, pmt.leafIndex(SecureHash.sha384("19")))
         // The provided hash is not in the tree.
-        assertFailsWith<MerkleTreeException> { pmt.leafIndex(SecureHash.sha256("10")) }
+        assertFailsWith<MerkleTreeException> { pmt.leafIndex(SecureHash.sha384("10")) }
         // The provided hash is not in the tree (using a leaf that didn't exist in the original Merkle tree).
-        assertFailsWith<MerkleTreeException> { pmt.leafIndex(SecureHash.sha256("30")) }
+        assertFailsWith<MerkleTreeException> { pmt.leafIndex(SecureHash.sha384("30")) }
 
-        val pmtFirstElementOnly = PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha256("0")))
-        assertEquals(0, pmtFirstElementOnly.leafIndex(SecureHash.sha256("0")))
+        val pmtFirstElementOnly = PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha384("0")))
+        assertEquals(0, pmtFirstElementOnly.leafIndex(SecureHash.sha384("0")))
         // The provided hash is not in the tree.
-        assertFailsWith<MerkleTreeException> { pmtFirstElementOnly.leafIndex(SecureHash.sha256("10")) }
+        assertFailsWith<MerkleTreeException> { pmtFirstElementOnly.leafIndex(SecureHash.sha384("10")) }
 
-        val pmtLastElementOnly = PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha256("19")))
-        assertEquals(19, pmtLastElementOnly.leafIndex(SecureHash.sha256("19")))
+        val pmtLastElementOnly = PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha384("19")))
+        assertEquals(19, pmtLastElementOnly.leafIndex(SecureHash.sha384("19")))
         // The provided hash is not in the tree.
-        assertFailsWith<MerkleTreeException> { pmtLastElementOnly.leafIndex(SecureHash.sha256("10")) }
+        assertFailsWith<MerkleTreeException> { pmtLastElementOnly.leafIndex(SecureHash.sha384("10")) }
 
-        val pmtOneElement = PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha256("5")))
-        assertEquals(5, pmtOneElement.leafIndex(SecureHash.sha256("5")))
+        val pmtOneElement = PartialMerkleTree.build(merkleTree, listOf<SecureHash>(SecureHash.sha384("5")))
+        assertEquals(5, pmtOneElement.leafIndex(SecureHash.sha384("5")))
         // The provided hash is not in the tree.
-        assertFailsWith<MerkleTreeException> { pmtOneElement.leafIndex(SecureHash.sha256("10")) }
+        assertFailsWith<MerkleTreeException> { pmtOneElement.leafIndex(SecureHash.sha384("10")) }
 
         val pmtAllIncluded = PartialMerkleTree.build(merkleTree, sampleLeaves)
-        for (i in 0..19) assertEquals(i, pmtAllIncluded.leafIndex(SecureHash.sha256(i.toString())))
+        for (i in 0..19) assertEquals(i, pmtAllIncluded.leafIndex(SecureHash.sha384(i.toString())))
         // The provided hash is not in the tree (using a leaf that didn't exist in the original Merkle tree).
-        assertFailsWith<MerkleTreeException> { pmtAllIncluded.leafIndex(SecureHash.sha256("30")) }
+        assertFailsWith<MerkleTreeException> { pmtAllIncluded.leafIndex(SecureHash.sha384("30")) }
     }
 
     @Test(timeout=300_000)

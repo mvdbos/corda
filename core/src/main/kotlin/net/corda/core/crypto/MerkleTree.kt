@@ -38,7 +38,7 @@ sealed class MerkleTree {
             if (isPow2(n)) return allLeavesHashes
             val paddedHashes = ArrayList<SecureHash>(allLeavesHashes)
             while (!isPow2(n++)) {
-                paddedHashes.add(SecureHash.zeroHash)
+                paddedHashes.add(SecureHash.zeroHash384)
             }
             return paddedHashes
         }

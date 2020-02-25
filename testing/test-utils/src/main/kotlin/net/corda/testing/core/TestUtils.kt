@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 
 /** Returns a fake state reference for testing purposes. **/
-fun generateStateRef(): StateRef = StateRef(SecureHash.randomSHA256(), 0)
+fun generateStateRef(): StateRef = StateRef(SecureHash.randomSHA384(), 0)
 
 private val freePortCounter = AtomicInteger(30000)
 

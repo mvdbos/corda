@@ -148,11 +148,7 @@ class NodeAttachmentService @JvmOverloads constructor(
     )
 
     @VisibleForTesting
-    /*
-     * Disabled by default, as it is an optional additional security check.
-     * It also breaks hash function agility, because the check is hardcoded to SHA256
-     */
-    var checkAttachmentsOnLoad = false
+    var checkAttachmentsOnLoad = true
 
     private val attachmentCount = metrics.counter("Attachments")
 

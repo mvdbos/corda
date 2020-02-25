@@ -51,12 +51,12 @@ class TransactionSignatureTest {
 	fun `Verify multi-tx signature`() {
         val keyPair = Crypto.deriveKeyPairFromEntropy(Crypto.EDDSA_ED25519_SHA512, BigInteger.valueOf(1234567890L))
         // Deterministically create 5 txIds.
-        val txIds: List<SecureHash> = IntRange(0, 4).map { byteArrayOf(it.toByte()).sha256() }
+        val txIds: List<SecureHash> = IntRange(0, 4).map { byteArrayOf(it.toByte()).sha384() }
         // Multi-tx signature.
         val txSignature = signMultipleTx(txIds, keyPair)
 
         // The hash of all txIds are used as leaves.
-        val merkleTree = MerkleTree.getMerkleTree(txIds.map { it.sha256() })
+        val merkleTree = MerkleTree.getMerkleTree(txIds.map { it.sha384() })
 
         // We haven't added the partial tree yet.
         assertNull(txSignature.partialMerkleTree)
@@ -64,7 +64,7 @@ class TransactionSignatureTest {
         assertFailsWith<SignatureException> { Crypto.doVerify(txIds[3], txSignature) }
 
         // Create a partial tree for one tx.
-        val pmt = PartialMerkleTree.build(merkleTree, listOf(txIds[0].sha256()))
+        val pmt = PartialMerkleTree.build(merkleTree, listOf(txIds[0].sha384()))
         // Add the partial Merkle tree to the tx signature.
         val txSignatureWithTree = TransactionSignature(txSignature.bytes, txSignature.by, txSignature.signatureMetadata, pmt)
 
@@ -84,7 +84,7 @@ class TransactionSignatureTest {
 
         // What if we send the Full tree. This could be used if notaries didn't want to create a per tx partial tree.
         // Create a partial tree for all txs, thus all leaves are included.
-        val pmtFull = PartialMerkleTree.build(merkleTree, txIds.map { it.sha256() })
+        val pmtFull = PartialMerkleTree.build(merkleTree, txIds.map { it.sha384() })
         // Add the partial Merkle tree to the tx.
         val txSignatureWithFullTree = TransactionSignature(txSignature.bytes, txSignature.by, txSignature.signatureMetadata, pmtFull)
 
@@ -97,7 +97,7 @@ class TransactionSignatureTest {
     @Test(timeout=300_000)
 	fun `Verify one-tx signature`() {
         val keyPair = Crypto.deriveKeyPairFromEntropy(Crypto.EDDSA_ED25519_SHA512, BigInteger.valueOf(1234567890L))
-        val txId = "aTransaction".toByteArray().sha256()
+        val txId = "aTransaction".toByteArray().sha384()
         // One-tx signature.
         val txSignature = signOneTx(txId, keyPair)
 
@@ -115,7 +115,7 @@ class TransactionSignatureTest {
 
     // Returns a TransactionSignature over the Merkle root, but the partial tree is null.
     private fun signMultipleTx(txIds: List<SecureHash>, keyPair: KeyPair): TransactionSignature {
-        val merkleTreeRoot = MerkleTree.getMerkleTree(txIds.map { it.sha256() }).hash
+        val merkleTreeRoot = MerkleTree.getMerkleTree(txIds.map { it.sha384() }).hash
         return signOneTx(merkleTreeRoot, keyPair)
     }
 

@@ -31,9 +31,9 @@ class CompatibleTransactionTests {
     @JvmField
     val testSerialization = SerializationEnvironmentRule()
     private val dummyOutState = TransactionState(DummyState(0), DummyContract.PROGRAM_ID, DUMMY_NOTARY)
-    private val stateRef1 = StateRef(SecureHash.randomSHA256(), 0)
-    private val stateRef2 = StateRef(SecureHash.randomSHA256(), 1)
-    private val stateRef3 = StateRef(SecureHash.randomSHA256(), 0)
+    private val stateRef1 = StateRef(SecureHash.randomSHA384(), 0)
+    private val stateRef2 = StateRef(SecureHash.randomSHA384(), 1)
+    private val stateRef3 = StateRef(SecureHash.randomSHA384(), 0)
 
     private val inputs = listOf(stateRef1, stateRef2, stateRef3) // 3 elements.
     private val outputs = listOf(dummyOutState, dummyOutState.copy(notary = BOB)) // 2 elements.

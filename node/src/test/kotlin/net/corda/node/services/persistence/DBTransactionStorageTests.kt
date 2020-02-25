@@ -324,7 +324,7 @@ class DBTransactionStorageTests {
 
     private fun newTransaction(): SignedTransaction {
         val wtx = createWireTransaction(
-                inputs = listOf(StateRef(SecureHash.randomSHA256(), 0)),
+                inputs = listOf(StateRef(SecureHash.randomSHA384(), 0)),
                 attachments = emptyList(),
                 outputs = emptyList(),
                 commands = listOf(dummyCommand()),

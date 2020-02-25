@@ -326,7 +326,7 @@ abstract class TransactionVerificationException(val txId: SecureHash, message: S
 
     /**
      * Thrown to indicate that a contract attachment is not signed by the network-wide package owner. Please note that
-     * the [txId] will always be [SecureHash.zeroHash] because package ownership is an error with a particular attachment,
+     * the [txId] will always be [SecureHash.zeroHash384] because package ownership is an error with a particular attachment,
      * and because attachment classloaders are reused this is independent of any particular transaction.
      */
     class PackageOwnershipException(txId: SecureHash, @Suppress("unused") val attachmentHash: AttachmentId, @Suppress("unused") val invalidClassName: String, val packageName: String) : TransactionVerificationException(txId,

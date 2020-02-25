@@ -722,7 +722,7 @@ abstract class AbstractNode<S>(val configuration: NodeConfiguration,
         )
     }
 
-    private fun parseSecureHashConfiguration(unparsedConfig: List<String>, errorMessage: (String) -> String): List<SecureHash.SHA256> {
+    private fun parseSecureHashConfiguration(unparsedConfig: List<String>, errorMessage: (String) -> String): List<SecureHash> {
         return unparsedConfig.map {
             try {
                 SecureHash.parse(it)

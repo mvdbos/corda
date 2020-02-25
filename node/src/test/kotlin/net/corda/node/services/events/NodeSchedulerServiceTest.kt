@@ -282,7 +282,7 @@ class NodeSchedulerPersistenceTest : NodeSchedulerServiceTestBase() {
         val database = configureDatabase(dataSourceProps, databaseConfig, { null }, { null })
         database.transaction {
             val repo = PersistentScheduledFlowRepository(database)
-            val stateRef = StateRef(SecureHash.randomSHA256(), 0)
+            val stateRef = StateRef(SecureHash.randomSHA384(), 0)
             val ssr = ScheduledStateRef(stateRef, mark)
             repo.merge(ssr)
 
@@ -296,7 +296,7 @@ class NodeSchedulerPersistenceTest : NodeSchedulerServiceTestBase() {
 	fun `test that schedule is persisted`() {
         val dataSourceProps = MockServices.makeTestDataSourceProperties()
         val timeInTheFuture = mark + 1.days
-        val stateRef = StateRef(SecureHash.zeroHash, 0)
+        val stateRef = StateRef(SecureHash.zeroHash384, 0)
 
         configureDatabase(dataSourceProps, databaseConfig, { null }, { null }).use { database ->
             val scheduler = database.transaction {

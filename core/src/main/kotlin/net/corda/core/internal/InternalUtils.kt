@@ -149,7 +149,7 @@ fun <T> List<T>.indexOfOrThrow(item: T): Int {
 fun InputStream.readFully(): ByteArray = use { it.readBytes() }
 
 /** Calculate the hash of the remaining bytes in this input stream. The stream is closed at the end. */
-fun InputStream.hash(): SecureHash {
+fun InputStream.hash(): SecureHash.SHA256 {
     return use {
         val md = MessageDigest.getInstance("SHA-256")
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -543,7 +543,7 @@ fun <T : Any> SerializedBytes<T>.sign(keyPair: KeyPair): SignedData<T> = SignedD
 
 fun ByteBuffer.copyBytes(): ByteArray = ByteArray(remaining()).also { get(it) }
 
-val PublicKey.hash: SecureHash get() = encoded.sha256()
+val PublicKey.hash: SecureHash.SHA256 get() = encoded.sha256()
 
 /**
  * Extension method for providing a sumBy method that processes and returns a Long
