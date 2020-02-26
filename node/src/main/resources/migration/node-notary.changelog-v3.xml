@@ -6,5 +6,7 @@
     <changeSet author="ING" id="tx_hash_length">
         <modifyDataType tableName="node_notary_request_log" columnName="consuming_transaction_id" newDataType="NVARCHAR(96)"/>
         <modifyDataType tableName="node_notary_committed_txs" columnName="transaction_id" newDataType="NVARCHAR(96)"/>
+        <modifyDataType tableName="node_notary_committed_states" columnName="transaction_id" newDataType="NVARCHAR(96)"/>
+        <modifyDataType tableName="node_notary_committed_states" columnName="consuming_transaction_id" newDataType="NVARCHAR(96)"/>
     </changeSet>
 </databaseChangeLog>

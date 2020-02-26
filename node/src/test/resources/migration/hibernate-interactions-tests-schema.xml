@@ -4,7 +4,7 @@
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.5.xsd">
     <changeSet author="R3.Corda" id="hibernate-interaction-tests-changeset">
         <createTable tableName="parentstates">
-            <column name="transaction_id" type="NVARCHAR(64)">
+            <column name="transaction_id" type="NVARCHAR(96)">
                 <constraints nullable="false"/>
             </column>
             <column name="output_index" type="INT">
@@ -27,7 +27,7 @@
             <column name="parentstates_output_index" type="INT">
                 <constraints nullable="false"/>
             </column>
-            <column name="parentstates_transaction_id" type="NVARCHAR(64)">
+            <column name="parentstates_transaction_id" type="NVARCHAR(96)">
                 <constraints nullable="false"/>
             </column>
             <column name="children_identifier" type="INT">
