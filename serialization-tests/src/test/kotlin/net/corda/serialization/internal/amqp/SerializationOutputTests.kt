@@ -953,7 +953,7 @@ class SerializationOutputTests(private val compression: CordaSerializationEncodi
     @Test(timeout=300_000)
 	fun `test privacy salt serialize`() {
         serdes(PrivacySalt())
-        serdes(PrivacySalt(secureRandomBytes(32)))
+        serdes(PrivacySalt(secureRandomBytes(SecureHash.sha384DigestLength)))
     }
 
     @Test(timeout=300_000)

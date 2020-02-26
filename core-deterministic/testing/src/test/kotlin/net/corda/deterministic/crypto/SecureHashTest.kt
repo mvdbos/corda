@@ -15,10 +15,25 @@ class SecureHashTest {
     }
 
     @Test(timeout=300_000)
+    fun testSHA384() {
+        val hash = SecureHash.sha384(byteArrayOf(0x64, -0x13, 0x42, 0x3a))
+        assertEquals(SecureHash.parse("5E3DBD33BEC467F625E28D4C5DF90CAACEA722F2DBB2AE9EF9C59EF4FB0FA31A070F5911156713F6AA0FCB09186B78FF"), hash)
+        assertEquals("5E3DBD33BEC467F625E28D4C5DF90CAACEA722F2DBB2AE9EF9C59EF4FB0FA31A070F5911156713F6AA0FCB09186B78FF", hash.toString())
+    }
+
+    @Test(timeout=300_000)
 	fun testPrefix() {
         val data = byteArrayOf(0x7d, 0x03, -0x21, 0x32, 0x56, 0x47)
         val digest = data.digestFor("SHA-256")
         val prefix = SecureHash.sha256(data).prefixChars(8)
+        assertEquals(Hex.toHexString(digest).substring(0, 8).toUpperCase(), prefix)
+    }
+
+    @Test(timeout=300_000)
+    fun testPrefix384() {
+        val data = byteArrayOf(0x7d, 0x03, -0x21, 0x32, 0x56, 0x47)
+        val digest = data.digestFor("SHA-384")
+        val prefix = SecureHash.sha384(data).prefixChars(8)
         assertEquals(Hex.toHexString(digest).substring(0, 8).toUpperCase(), prefix)
     }
 
@@ -31,9 +46,20 @@ class SecureHashTest {
     }
 
     @Test(timeout=300_000)
+    fun testConcat384() {
+        val hash1 = SecureHash.sha384(byteArrayOf(0x7d, 0x03, -0x21, 0x32, 0x56, 0x47))
+        val hash2 = SecureHash.sha384(byteArrayOf(0x63, 0x01, 0x7f, -0x29, 0x1e, 0x3c))
+        val combined = hash1.hashConcat(hash2)
+        assertArrayEquals((hash1.bytes + hash2.bytes).digestFor("SHA-384"), combined.bytes)
+    }
+
+    @Test(timeout=300_000)
 	fun testConstants() {
         assertArrayEquals(SecureHash.zeroHash.bytes, ByteArray(32))
         assertArrayEquals(SecureHash.allOnesHash.bytes, ByteArray(32) { 0xFF.toByte() })
+
+        assertArrayEquals(SecureHash.zeroHash384.bytes, ByteArray(48))
+        assertArrayEquals(SecureHash.allOnesHash384.bytes, ByteArray(48) { 0xFF.toByte() })
     }
 }
 
