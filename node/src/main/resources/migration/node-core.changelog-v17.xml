@@ -6,8 +6,8 @@
 
     <changeSet author="ING" id="node_transactions_hash_length">
         <modifyDataType tableName="node_transactions" columnName="tx_id" newDataType="NVARCHAR(96)"/>
-<!--        <modifyDataType tableName="node_transaction_mappings" columnName="tx_id" newDataType="NVARCHAR(96)"/>-->
         <modifyDataType tableName="node_scheduled_states" columnName="transaction_id" newDataType="NVARCHAR(96)"/>
+        <modifyDataType tableName="node_checkpoints" columnName="checkpoint_id" newDataType="NVARCHAR(96)"/>
 
         <!-- This should be length of transaction_id + 3 (for the index like so: '(0)') -->
         <modifyDataType tableName="node_contract_upgrades" columnName="state_ref" newDataType="NVARCHAR(99)"/>

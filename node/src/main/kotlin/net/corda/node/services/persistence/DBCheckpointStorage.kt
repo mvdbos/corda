@@ -30,12 +30,12 @@ class DBCheckpointStorage : CheckpointStorage {
     class DBCheckpoint(
             @Id
             @Suppress("MagicNumber") // database column width
-            @Column(name = "checkpoint_id", length = 64, nullable = false)
+            @Column(name = "checkpoint_id", length = 96, nullable = false)
             var checkpointId: String = "",
 
             @Type(type = "corda-blob")
             @Column(name = "checkpoint_value", nullable = false)
-            var checkpoint: ByteArray = EMPTY_BYTE_ARRAY          
+            var checkpoint: ByteArray = EMPTY_BYTE_ARRAY
     ) {
 	    override fun toString() = "DBCheckpoint(checkpointId = ${checkpointId}, checkpointSize = ${checkpoint.size})"
       }
