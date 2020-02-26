@@ -226,12 +226,13 @@ class KryoTests(private val compression: CordaSerializationEncoding?) {
 
     @Test(timeout=300_000)
 	fun `serialize - deserialize PrivacySalt`() {
-        val expected = PrivacySalt(byteArrayOf(
-                1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-                11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-                21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
-                31, 32
-        ))
+//        val expected = PrivacySalt(byteArrayOf(
+//                1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+//                11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+//                21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+//                31, 32
+//        ))
+        val expected = PrivacySalt((1..SecureHash.sha384DigestLength).map { it.toByte() }.toByteArray())
         val serializedBytes = expected.checkpointSerialize(context)
         val actual = serializedBytes.checkpointDeserialize(context)
         assertEquals(expected, actual)

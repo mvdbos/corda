@@ -93,7 +93,7 @@ class PersistentState(@EmbeddedId override var stateRef: PersistentStateRef? = n
 
 data class PersistentStateRef(
         @Suppress("MagicNumber") // column width
-        @Column(name = "transaction_id", length = 64, nullable = false)
+        @Column(name = "transaction_id", length = 96, nullable = false)
         var txId: String,
 
         @Column(name = "output_index", nullable = false)
