@@ -1,5 +1,7 @@
 package net.corda.coretests.flows
 
+import liquibase.Contexts
+import liquibase.LabelExpression
 import net.corda.core.contracts.FungibleAsset
 import net.corda.core.contracts.TransactionVerificationException
 import net.corda.core.flows.StateMachineRunId
@@ -35,7 +37,7 @@ class ReceiveFinalityFlowTest {
     }
 
     @Test(timeout=300_000)
-    @Ignore("This test fails because there are unrun migrations when bob restarts. Don't know why.")
+    @Ignore("This test fails because there are unrun migrations when bob restarts. See description of why in test body.")
 	fun `sent to flow hospital on error and retry on node restart`() {
         val alice = mockNet.createNode(InternalMockNodeParameters(legalName = ALICE_NAME, additionalCordapps = FINANCE_CORDAPPS))
         // Bob initially does not have the finance contracts CorDapp so that it can throw an exception in ReceiveFinalityFlow when receiving
@@ -60,6 +62,10 @@ class ReceiveFinalityFlowTest {
         // Restart Bob with the contracts CorDapp so that it can recover from the error
         // This fails because there are unrun migrations when bob restarts. Don't know why.
         // Probably to do with the new migrations added to fix the hash length
+        // To confirm, put a breakpoint on the line directly below and on a line directly after
+        // node-api/src/main/kotlin/net/corda/nodeapi/internal/persistence/SchemaMigration.kt:139
+        // Then you can see the value of `val unRunChanges = liquibase.listUnrunChangeSets(Contexts(), LabelExpression())`.
+        // This should be zero, and it is indeed zero when running from branch release/os/4.5. I don't know why.
         bob = mockNet.restartNode(bob, parameters = InternalMockNodeParameters(additionalCordapps = listOf(FINANCE_CONTRACTS_CORDAPP)))
         mockNet.runNetwork()
         assertThat(bob.services.getCashBalance(GBP)).isEqualTo(100.POUNDS)
