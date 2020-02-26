@@ -38,7 +38,7 @@ class DBTransactionStorage(private val database: CordaPersistence, cacheFactory:
     @Table(name = "${NODE_DATABASE_PREFIX}transactions")
     class DBTransaction(
             @Id
-            @Column(name = "tx_id", length = 64, nullable = false)
+            @Column(name = "tx_id", length = 96, nullable = false)
             val txId: String,
 
             @Column(name = "state_machine_run_id", length = 36, nullable = true)
