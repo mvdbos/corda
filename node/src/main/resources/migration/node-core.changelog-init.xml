@@ -28,7 +28,7 @@
     </changeSet>
     <changeSet author="R3.Corda" id="1511451595465-8">
         <createTable tableName="node_contract_upgrades">
-            <column name="state_ref" type="NVARCHAR(64)">
+            <column name="state_ref" type="NVARCHAR(96)">
                 <constraints nullable="false"/>
             </column>
             <column name="contract_class_name" type="NVARCHAR(255)"/>

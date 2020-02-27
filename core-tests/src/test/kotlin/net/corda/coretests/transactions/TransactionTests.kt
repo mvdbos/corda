@@ -125,7 +125,7 @@ class TransactionTests {
         val outputs = listOf(baseOutState, baseOutState.copy(notary = ALICE), baseOutState.copy(notary = BOB))
         val commands = emptyList<CommandWithParties<CommandData>>()
         val attachments = listOf<Attachment>(ContractAttachment(rigorousMock<Attachment>().also {
-            doReturn(SecureHash.zeroHash384).whenever(it).id
+            doReturn(SecureHash.zeroHash).whenever(it).id
             doReturn(fakeAttachment("nothing", "nada").inputStream()).whenever(it).open()
         }, DummyContract.PROGRAM_ID, uploader = "app"))
         val id = SecureHash.randomSHA384()
