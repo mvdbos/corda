@@ -1,13 +1,12 @@
 package net.corda.deterministic.contracts
 
 import net.corda.core.contracts.PrivacySalt
-import net.corda.core.crypto.SecureHash.SHA384
 import org.junit.Test
 import kotlin.test.*
 
 class PrivacySaltTest {
     private companion object {
-        private val SALT_SIZE = SHA384.DIGEST_LENGTH
+        private const val SALT_SIZE = 48
     }
 
     @Test(timeout=300_000)
