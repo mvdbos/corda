@@ -9,7 +9,6 @@ import net.corda.core.serialization.CordaSerializable
 import net.corda.core.utilities.OpaqueBytes
 import net.corda.core.utilities.parseAsHex
 import net.corda.core.utilities.toHexString
-import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.function.Supplier
@@ -21,11 +20,11 @@ import java.util.function.Supplier
 @KeepForDJVM
 @CordaSerializable
 sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
-    /** SHA-384 is part of the SHA-2 hash function family. Generated hash is size [sha384DigestLength]. */
+    /** SHA-384 is part of the SHA-2 hash function family. Generated hash is size [SHA384.DIGEST_LENGTH]. */
     class SHA384(bytes: ByteArray) : SecureHash(bytes) {
 
         init {
-            require(bytes.size == sha384DigestLength) { "Invalid hash size, must be $sha384DigestLength bytes" }
+            require(bytes.size == DIGEST_LENGTH) { "Invalid hash size, must be $DIGEST_LENGTH bytes" }
         }
 
         override fun equals(other: Any?): Boolean {
@@ -38,13 +37,17 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
         // This is an efficient hashCode, because there is no point in performing a hash calculation on a cryptographic hash.
         // It just takes the first 4 bytes and transforms them into an Int.
         override fun hashCode() = ByteBuffer.wrap(bytes).int
+
+        companion object {
+            const val DIGEST_LENGTH = 48
+        }
     }
 
-    /** SHA-256 is part of the SHA-2 hash function family. Generated hash is size [sha256DigestLength]. */
+    /** SHA-256 is part of the SHA-2 hash function family. Generated hash is size [SHA256.DIGEST_LENGTH]. */
     class SHA256(bytes: ByteArray) : SecureHash(bytes) {
 
         init {
-            require(bytes.size == sha256DigestLength) { "Invalid hash size, must be $sha256DigestLength bytes" }
+            require(bytes.size == DIGEST_LENGTH) { "Invalid hash size, must be $DIGEST_LENGTH bytes" }
         }
 
         override fun equals(other: Any?): Boolean {
@@ -57,25 +60,16 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
         // This is an efficient hashCode, because there is no point in performing a hash calculation on a cryptographic hash.
         // It just takes the first 4 bytes and transforms them into an Int.
         override fun hashCode() = ByteBuffer.wrap(bytes).int
+
+        companion object {
+            const val DIGEST_LENGTH = 32
+        }
     }
 
     inline fun <reified T : SecureHash> hashConcat(other: T): T {
-        return when(this) {
+        return when (this) {
             is SHA256 -> (this.bytes + other.bytes).sha256() as T
             is SHA384 -> (this.bytes + other.bytes).sha384() as T
-        }
-    }
-
-    fun combinedHash(components: Iterable<SecureHash>): SecureHash {
-        val stream = ByteArrayOutputStream()
-        components.forEach {
-            stream.write(it.bytes)
-        }
-
-        // Return hash type based on type of first component. If none, default to SHA256
-        return when((components.firstOrNull() ?: SecureHash.SHA256(ByteArray(0)))) {
-            is SecureHash.SHA256 -> {stream.toByteArray().sha256()}
-            is SecureHash.SHA384 -> {stream.toByteArray().sha384()}
         }
     }
 
@@ -101,32 +95,21 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
         fun parse(str: String?): SecureHash {
             return str?.toUpperCase()?.parseAsHex()?.let {
                 when (it.size) {
-                    sha384DigestLength -> SHA384(it)
-                    sha256DigestLength -> SHA256(it)
-                    else -> throw IllegalArgumentException("Provided string is ${it.size} bytes. Should be either $sha256DigestLength or $sha384DigestLength bytes in hex: $str")
+                    SHA384.DIGEST_LENGTH -> SHA384(it)
+                    SHA256.DIGEST_LENGTH -> SHA256(it)
+                    else -> throw IllegalArgumentException("Provided string is ${it.size} bytes. Should be either $SHA256.DIGEST_LENGTH or $SHA384.DIGEST_LENGTH bytes in hex: $str")
                 }
             } ?: throw IllegalArgumentException("Provided string is null")
         }
 
-        private val sha256MessageDigest = SHA256DigestSupplier()
-        val sha256DigestLength = sha256MessageDigest.get().digestLength
-
-        private val sha384MessageDigest = SHA384DigestSupplier()
-        val sha384DigestLength = sha384MessageDigest.get().digestLength
+        /** BEGIN SHA-256 **/
 
         /**
          * Computes the SHA-256 hash value of the [ByteArray].
          * @param bytes The [ByteArray] to hash.
          */
         @JvmStatic
-        fun sha384(bytes: ByteArray) = SHA384(sha384MessageDigest.get().digest(bytes))
-
-        /**
-         * Computes the SHA-256 hash value of the [ByteArray].
-         * @param bytes The [ByteArray] to hash.
-         */
-        @JvmStatic
-        fun sha256(bytes: ByteArray) = SHA256(sha256MessageDigest.get().digest(bytes))
+        fun sha256(bytes: ByteArray) = SHA256(SHA256DigestSupplier().get().digest(bytes))
 
         /**
          * Computes the SHA-256 hash of the [ByteArray], and then computes the SHA-256 hash of the hash.
@@ -147,35 +130,46 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          */
         @DeleteForDJVM
         @JvmStatic
-        fun randomSHA256() = sha256(secureRandomBytes(sha384DigestLength))
+        fun randomSHA256() = sha256(secureRandomBytes(SHA384.DIGEST_LENGTH))
 
         /**
-         * A SHA-256 hash value consisting of [sha384DigestLength] 0x00 bytes.
+         * A SHA-256 hash value consisting of [SHA384.DIGEST_LENGTH] 0x00 bytes.
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val zeroHash: SHA256 = SHA256(ByteArray(sha256DigestLength) { 0.toByte() })
+        val zeroHash: SHA256 = SHA256(ByteArray(SHA256.DIGEST_LENGTH) { 0.toByte() })
 
         /**
-         * A SHA-256 hash value consisting of [sha384DigestLength] 0x00 bytes.
+         * A SHA-256 hash value consisting of [SHA384.DIGEST_LENGTH] 0x00 bytes.
          * This function is provided for API stability.
          */
         @Suppress("Unused")
         fun getZeroHash(): SHA256 = zeroHash
 
         /**
-         * A SHA-256 hash value consisting of [sha384DigestLength] 0xFF bytes.
+         * A SHA-256 hash value consisting of [SHA384.DIGEST_LENGTH] 0xFF bytes.
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val allOnesHash: SHA256 = SHA256(ByteArray(sha256DigestLength) { 255.toByte() })
+        val allOnesHash: SHA256 = SHA256(ByteArray(SHA256.DIGEST_LENGTH) { 255.toByte() })
 
         /**
-         * A SHA-256 hash value consisting of [sha384DigestLength] 0xFF bytes.
+         * A SHA-256 hash value consisting of [SHA384.DIGEST_LENGTH] 0xFF bytes.
          * This function is provided for API stability.
          */
         @Suppress("Unused")
         fun getAllOnesHash(): SHA256 = allOnesHash
+
+        /** END SHA-256 **/
+
+        /** BEGIN SHA-384 **/
+
+        /**
+         * Computes the SHA-384 hash value of the [ByteArray].
+         * @param bytes The [ByteArray] to hash.
+         */
+        @JvmStatic
+        fun sha384(bytes: ByteArray) = SHA384(SHA384DigestSupplier().get().digest(bytes))
 
         /**
          * Computes the SHA-384 hash of the [ByteArray], and then computes the SHA-384 hash of the hash.
@@ -196,35 +190,37 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          */
         @DeleteForDJVM
         @JvmStatic
-        fun randomSHA384() = sha384(secureRandomBytes(sha384DigestLength))
+        fun randomSHA384() = sha384(secureRandomBytes(SHA384.DIGEST_LENGTH))
 
         /**
-         * A SHA-384 hash value consisting of [sha384DigestLength] 0x00 bytes.
+         * A SHA-384 hash value consisting of [SHA384.DIGEST_LENGTH] 0x00 bytes.
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val zeroHash384: SHA384 = SHA384(ByteArray(sha384DigestLength) { 0.toByte() })
+        val zeroHash384: SHA384 = SHA384(ByteArray(SHA384.DIGEST_LENGTH) { 0.toByte() })
 
         /**
-         * A SHA-384 hash value consisting of [sha384DigestLength] 0x00 bytes.
+         * A SHA-384 hash value consisting of [SHA384.DIGEST_LENGTH] 0x00 bytes.
          * This function is provided for API stability.
          */
         @Suppress("Unused")
         fun getZeroHash384(): SHA384 = zeroHash384
 
         /**
-         * A SHA-384 hash value consisting of [sha384DigestLength] 0xFF bytes.
+         * A SHA-384 hash value consisting of [SHA384.DIGEST_LENGTH] 0xFF bytes.
          * This field provides more intuitive access from Java.
          */
         @JvmField
-        val allOnesHash384: SHA384 = SHA384(ByteArray(sha384DigestLength) { 255.toByte() })
+        val allOnesHash384: SHA384 = SHA384(ByteArray(SHA384.DIGEST_LENGTH) { 255.toByte() })
 
         /**
-         * A SHA-384 hash value consisting of [sha384DigestLength] 0xFF bytes.
+         * A SHA-384 hash value consisting of [SHA384.DIGEST_LENGTH] 0xFF bytes.
          * This function is provided for API stability.
          */
         @Suppress("Unused")
         fun getAllOnesHash384(): SHA384 = allOnesHash384
+
+        /** END SHA-384 **/
     }
 }
 

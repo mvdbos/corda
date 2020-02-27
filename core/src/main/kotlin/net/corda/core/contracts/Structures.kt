@@ -314,7 +314,7 @@ interface UpgradedContractWithLegacyConstraint<in OldState : ContractState, out 
  * A privacy salt is required to compute nonces per transaction component in order to ensure that an adversary cannot
  * use brute force techniques and reveal the content of a Merkle-leaf hashed value.
  * Because this salt serves the role of the seed to compute nonces, its size and entropy should be equal to the
- * underlying hash function used for Merkle tree generation, currently [SecureHash.SHA384], which has an output of [SecureHash.sha384DigestLength] bytes.
+ * underlying hash function used for Merkle tree generation, currently [SecureHash.SHA384], which has an output of [SecureHash.SHA384.DIGEST_LENGTH] bytes.
  * There are two constructors, one that generates a new 32-bytes random salt, and another that takes a [ByteArray] input.
  * The latter is required in cases where the salt value needs to be pre-generated (agreed between transacting parties),
  * but it is highlighted that one should always ensure it has sufficient entropy.
@@ -322,12 +322,12 @@ interface UpgradedContractWithLegacyConstraint<in OldState : ContractState, out 
 @CordaSerializable
 @KeepForDJVM
 class PrivacySalt(bytes: ByteArray) : OpaqueBytes(bytes) {
-    /** Constructs a salt with a randomly-generated [SecureHash.sha384DigestLength] byte value. */
+    /** Constructs a salt with a randomly-generated [SecureHash.SHA384.DIGEST_LENGTH] byte value. */
     @DeleteForDJVM
-    constructor() : this(secureRandomBytes(SecureHash.sha384DigestLength))
+    constructor() : this(secureRandomBytes(SecureHash.SHA384.DIGEST_LENGTH))
 
     init {
-        require(bytes.size == SecureHash.sha384DigestLength) { "Privacy salt should be ${SecureHash.sha384DigestLength} bytes." }
+        require(bytes.size == SecureHash.SHA384.DIGEST_LENGTH) { "Privacy salt should be ${SecureHash.SHA384.DIGEST_LENGTH} bytes." }
         require(bytes.any { it != 0.toByte() }) { "Privacy salt should not be all zeros." }
     }
 }

@@ -217,7 +217,7 @@ object DefaultKryoCustomizer {
         @Suppress("UNCHECKED_CAST")
         override fun read(kryo: Kryo, input: Input, type: Class<ContractAttachment>): ContractAttachment {
             if (kryo.serializationContext() != null) {
-                val attachmentHash = SecureHash.SHA256(input.readBytes(SecureHash.sha256DigestLength))
+                val attachmentHash = SecureHash.SHA256(input.readBytes(SecureHash.SHA256.DIGEST_LENGTH))
                 val contract = input.readString()
                 val additionalContracts = kryo.readClassAndObject(input) as Set<ContractClassName>
                 val uploader = input.readString()
