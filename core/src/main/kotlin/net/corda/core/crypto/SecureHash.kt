@@ -27,16 +27,7 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
             require(bytes.size == DIGEST_LENGTH) { "Invalid hash size, must be $DIGEST_LENGTH bytes" }
         }
 
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            if (!super.equals(other)) return false
-            return true
-        }
-
-        // This is an efficient hashCode, because there is no point in performing a hash calculation on a cryptographic hash.
-        // It just takes the first 4 bytes and transforms them into an Int.
-        override fun hashCode() = ByteBuffer.wrap(bytes).int
+        override fun hashConcat(other: SecureHash) = (this.bytes + other.bytes).sha384()
 
         companion object {
             const val DIGEST_LENGTH = 48
@@ -50,28 +41,14 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
             require(bytes.size == DIGEST_LENGTH) { "Invalid hash size, must be $DIGEST_LENGTH bytes" }
         }
 
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-            if (!super.equals(other)) return false
-            return true
-        }
-
-        // This is an efficient hashCode, because there is no point in performing a hash calculation on a cryptographic hash.
-        // It just takes the first 4 bytes and transforms them into an Int.
-        override fun hashCode() = ByteBuffer.wrap(bytes).int
+        override fun hashConcat(other: SecureHash) = (this.bytes + other.bytes).sha256()
 
         companion object {
             const val DIGEST_LENGTH = 32
         }
     }
 
-    inline fun <reified T : SecureHash> hashConcat(other: T): T {
-        return when (this) {
-            is SHA256 -> (this.bytes + other.bytes).sha256() as T
-            is SHA384 -> (this.bytes + other.bytes).sha384() as T
-        }
-    }
+    abstract fun hashConcat(other: SecureHash): SecureHash
 
     /**
      * Convert the hash value to an uppercase hexadecimal [String].
@@ -83,6 +60,17 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
      * @param prefixLen The number of characters in the prefix.
      */
     fun prefixChars(prefixLen: Int = 6) = toString().substring(0, prefixLen)
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        if (!super.equals(other)) return false
+        return true
+    }
+
+    // This is an efficient hashCode, because there is no point in performing a hash calculation on a cryptographic hash.
+    // It just takes the first 4 bytes and transforms them into an Int.
+    override fun hashCode() = ByteBuffer.wrap(bytes).int
 
     // Like static methods in Java, except the 'companion' is a singleton that can have state.
     companion object {
@@ -97,7 +85,7 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
                 when (it.size) {
                     SHA384.DIGEST_LENGTH -> SHA384(it)
                     SHA256.DIGEST_LENGTH -> SHA256(it)
-                    else -> throw IllegalArgumentException("Provided string is ${it.size} bytes. Should be either $SHA256.DIGEST_LENGTH or $SHA384.DIGEST_LENGTH bytes in hex: $str")
+                    else -> throw IllegalArgumentException("Provided string is ${it.size} bytes. Should be either ${SHA256.DIGEST_LENGTH} or ${SHA384.DIGEST_LENGTH} bytes in hex: $str")
                 }
             } ?: throw IllegalArgumentException("Provided string is null")
         }
@@ -170,13 +158,6 @@ sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
          */
         @JvmStatic
         fun sha384(bytes: ByteArray) = SHA384(SHA384DigestSupplier().get().digest(bytes))
-
-        /**
-         * Computes the SHA-384 hash of the [ByteArray], and then computes the SHA-384 hash of the hash.
-         * @param bytes The [ByteArray] to hash.
-         */
-        @JvmStatic
-        fun sha384Twice(bytes: ByteArray) = sha384(sha384(bytes).bytes)
 
         /**
          * Computes the SHA-384 hash of the [String]'s UTF-8 byte contents.

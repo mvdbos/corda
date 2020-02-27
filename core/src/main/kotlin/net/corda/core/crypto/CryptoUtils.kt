@@ -266,10 +266,10 @@ fun random63BitValue(): Long {
  * from [computeNonce].
  */
 fun componentHash(opaqueBytes: OpaqueBytes, privacySalt: PrivacySalt, componentGroupIndex: Int, internalIndex: Int): SecureHash =
-        componentHash(computeNonce(privacySalt, componentGroupIndex, internalIndex), opaqueBytes)
+        componentHash(computeNonce384(privacySalt, componentGroupIndex, internalIndex), opaqueBytes)
 
-/** Return the SHA256(SHA256(nonce || serializedComponent)). */
-fun componentHash(nonce: SecureHash, opaqueBytes: OpaqueBytes): SecureHash = SecureHash.sha384Twice(nonce.bytes + opaqueBytes.bytes)
+/** Return the SHA384(nonce || serializedComponent). */
+fun componentHash(nonce: SecureHash, opaqueBytes: OpaqueBytes): SecureHash = SecureHash.sha384(nonce.bytes + opaqueBytes.bytes)
 
 /**
  * Serialise the object and return the hash of the serialized bytes. Note that the resulting hash may not be deterministic
@@ -280,11 +280,21 @@ fun <T : Any> serializedHash(x: T): SecureHash = x.serialize(context = Serializa
 
 /**
  * Method to compute a nonce based on privacySalt, component group index and component internal index.
+ * Unlike for SHA256, we don't have to do it twice, because SHA-384 is not vulnerable to length extension attacks.
+ * @param privacySalt a [PrivacySalt].
+ * @param groupIndex the fixed index (ordinal) of this component group.
+ * @param internalIndex the internal index of this object in its corresponding components list.
+ * @return SHA384(privacySalt || groupIndex || internalIndex)
+ */
+fun computeNonce384(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = SecureHash.sha384(privacySalt.bytes + ByteBuffer.allocate(8).putInt(groupIndex).putInt(internalIndex).array())
+
+/**
+ * Method to compute a nonce based on privacySalt, component group index and component internal index.
  * SHA256d (double SHA256) is used to prevent length extension attacks.
  * @param privacySalt a [PrivacySalt].
  * @param groupIndex the fixed index (ordinal) of this component group.
  * @param internalIndex the internal index of this object in its corresponding components list.
  * @return SHA256(SHA256(privacySalt || groupIndex || internalIndex))
  */
-fun computeNonce(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = SecureHash.sha384Twice(privacySalt.bytes + ByteBuffer.allocate(8).putInt(groupIndex).putInt(internalIndex).array())
+fun computeNonce(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = SecureHash.sha256Twice(privacySalt.bytes + ByteBuffer.allocate(8).putInt(groupIndex).putInt(internalIndex).array())
 
