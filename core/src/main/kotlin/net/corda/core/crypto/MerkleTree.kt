@@ -1,6 +1,7 @@
 package net.corda.core.crypto
 
 import net.corda.core.KeepForDJVM
+import net.corda.core.transactions.ComponentGroup
 import java.util.*
 
 /**
