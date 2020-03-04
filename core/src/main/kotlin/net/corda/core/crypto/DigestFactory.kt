@@ -8,11 +8,12 @@ sealed class Algorithm(val userFriendyName: String, val kClass: KClass<*>) {
 }
 
 interface DigestServiceFactory {
-    fun getService(algorithm: String): DigestService
+    fun getService(algorithm: Algorithm): DigestService
 }
 
-object DefaultDigestServiceFactory {
-    fun getService(algorithm: Algorithm): DigestService {
+object DefaultDigestServiceFactory: DigestServiceFactory {
+    override fun getService(algorithm: Algorithm): DigestService {
         return algorithm.kClass.createInstance() as DigestService
     }
+
 }
