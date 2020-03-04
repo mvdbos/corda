@@ -21,12 +21,12 @@ class SHA256ServiceTest {
 
     @Test(timeout = 300_000)
     fun testGetAllOnesHash() {
-        Assert.assertArrayEquals(SecureHash.allOnesHash.bytes, ByteArray(32) { 0xFF.toByte() })
+        Assert.assertArrayEquals(service.getAllOnesHash().bytes, ByteArray(32) { 0xFF.toByte() })
     }
 
     @Test(timeout = 300_000)
     fun testGetZeroHash() {
-        Assert.assertArrayEquals(SecureHash.zeroHash.bytes, ByteArray(32))
+        Assert.assertArrayEquals(service.getZeroHash().bytes, ByteArray(32))
     }
 
     @Test(timeout = 300_000)
