@@ -77,6 +77,20 @@ class WireTransaction(componentGroups: List<ComponentGroup>, val privacySalt: Pr
     /** The transaction id is represented by the root hash of Merkle tree over the transaction components. */
     override val id: SecureHash get() = merkleTree.hash
 
+    /** This additional merkle root is represented by the root hash of a Merkle tree over the transaction components. */
+    override val additionalMerkleRoot: SecureHash get() = additionalMerkleTree.hash
+    private val additionalMerkleTree: MerkleTree by lazy { MerkleTree.getMerkleTree(additionalgroupHashes) }
+    private val additionalgroupHashes: List<SecureHash> by lazy {
+        val listOfLeaves = mutableListOf<SecureHash>()
+        // Even if empty and not used, we should at least send oneHashes for each known
+        // or received but unknown (thus, bigger than known ordinal) component groups.
+        for (i in 0..componentGroups.map { it.groupIndex }.max()!!) {
+            val root = groupsMerkleRoots[i] ?: SecureHash.allOnesHash
+            listOfLeaves.add(root)
+        }
+        listOfLeaves
+    }
+
     /** Public keys that need to be fulfilled by signatures in order for the transaction to be valid. */
     val requiredSigningKeys: Set<PublicKey>
         get() {
