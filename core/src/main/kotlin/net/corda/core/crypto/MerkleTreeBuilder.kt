@@ -7,19 +7,19 @@ import net.corda.core.utilities.OpaqueBytes
 import java.nio.ByteBuffer
 
 class MerkleTreeBuilder(componentGroups: List<ComponentGroup>, private val privacySalt: PrivacySalt, private val digestService: DigestService) {
-        /**
-         * Builds whole Merkle tree for a transaction.
-         * Briefly, each component group has its own sub Merkle tree and all of the roots of these trees are used as leaves
-         * in a top level Merkle tree.
-         * Note that ordering of elements inside a [ComponentGroup] matters when computing the Merkle root.
-         * On the other hand, insertion group ordering does not affect the top level Merkle tree construction, as it is
-         * actually an ordered Merkle tree, where its leaves are ordered based on the group ordinal in [ComponentGroupEnum].
-         * If any of the groups is an empty list or a null object, then [SecureHash.allOnesHash] is used as its hash.
-         * Also, [privacySalt] is not a Merkle tree leaf, because it is already "inherently" included via the component nonces.
-         */
-        fun getMerkleTreeForComponentGroups(): MerkleTree {
-            return MerkleTree.getMerkleTree(groupHashes)
-        }
+    /**
+     * Builds whole Merkle tree for a transaction.
+     * Briefly, each component group has its own sub Merkle tree and all of the roots of these trees are used as leaves
+     * in a top level Merkle tree.
+     * Note that ordering of elements inside a [ComponentGroup] matters when computing the Merkle root.
+     * On the other hand, insertion group ordering does not affect the top level Merkle tree construction, as it is
+     * actually an ordered Merkle tree, where its leaves are ordered based on the group ordinal in [ComponentGroupEnum].
+     * If any of the groups is an empty list or a null object, then [SecureHash.allOnesHash] is used as its hash.
+     * Also, [privacySalt] is not a Merkle tree leaf, because it is already "inherently" included via the component nonces.
+     */
+    fun getMerkleTree(): MerkleTree {
+        return MerkleTree.getMerkleTree(groupHashes)
+    }
 
     /**
      * The leaves (group hashes) of the top level Merkle tree.
@@ -59,7 +59,9 @@ class MerkleTreeBuilder(componentGroups: List<ComponentGroup>, private val priva
      * nothing about the rest.
      */
     private val availableComponentNonces: Map<Int, List<SecureHash>> by lazy {
-        componentGroups.map { Pair(it.groupIndex, it.components.mapIndexed { internalIndex, internalIt -> componentHash(internalIt, privacySalt, it.groupIndex, internalIndex) }) }.toMap()
+        componentGroups.map { Pair(it.groupIndex, it.components.mapIndexed {
+            internalIndex, internalIt -> componentHash(internalIt, privacySalt, it.groupIndex, internalIndex)
+        }) }.toMap()
     }
 
     /**
@@ -68,7 +70,9 @@ class MerkleTreeBuilder(componentGroups: List<ComponentGroup>, private val priva
      * see the user-guide section "Transaction tear-offs" to learn more about this topic.
      */
     private val availableComponentHashes: Map<Int, List<SecureHash>> by lazy {
-        componentGroups.map { Pair(it.groupIndex, it.components.mapIndexed { internalIndex, internalIt -> componentHash(availableComponentNonces[it.groupIndex]!![internalIndex], internalIt) }) }.toMap()
+        componentGroups.map { Pair(it.groupIndex, it.components.mapIndexed {
+            internalIndex, internalIt -> componentHash(availableComponentNonces[it.groupIndex]!![internalIndex], internalIt)
+        }) }.toMap()
     }
 
     /**
@@ -91,6 +95,4 @@ class MerkleTreeBuilder(componentGroups: List<ComponentGroup>, private val priva
      * @return SHA256(SHA256(privacySalt || groupIndex || internalIndex))
      */
     private fun computeNonce(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = digestService.hash(privacySalt.bytes + ByteBuffer.allocate(8).putInt(groupIndex).putInt(internalIndex).array(), true)
-
-
 }

@@ -4,6 +4,7 @@ import net.corda.core.contracts.*
 import net.corda.core.contracts.ComponentGroupEnum.*
 import net.corda.core.crypto.*
 import net.corda.core.internal.accessAvailableComponentHashes
+import net.corda.core.internal.accessComponentGroups
 import net.corda.core.internal.accessGroupHashes
 import net.corda.core.internal.accessGroupMerkleRoots
 import net.corda.core.internal.createComponentGroups
@@ -68,6 +69,59 @@ class CompatibleTransactionTests {
         )
     }
     private val wireTransactionA by lazy { WireTransaction(componentGroups = componentGroupsA, privacySalt = privacySalt) }
+
+    @Test(timeout=300_000)
+    fun `Additional Merkle root computations`() {
+        val digestService = DefaultDigestServiceFactory.getService(Algorithm.SHA256())
+        // Merkle tree computation is deterministic if the same salt and ordering are used.
+        val wireTransactionB = WireTransaction(componentGroups = componentGroupsA, privacySalt = privacySalt)
+        assertEquals(wireTransactionA.additionalMerkleRoot, wireTransactionB.additionalMerkleRoot)
+
+        // Merkle tree computation will change if privacy salt changes.
+        val wireTransactionOtherPrivacySalt = WireTransaction(componentGroups = componentGroupsA, privacySalt = PrivacySalt())
+        assertNotEquals(wireTransactionA.additionalMerkleRoot, wireTransactionOtherPrivacySalt.additionalMerkleRoot)
+
+        // Full Merkle root is computed from the list of Merkle roots of each component group.
+        assertEquals(wireTransactionA.additionalMerkleRoot, MerkleTreeBuilder(wireTransactionA.accessComponentGroups(), privacySalt, digestService).getMerkleTree().hash)
+
+        // Trying to add an empty component group (not allowed), e.g. the empty attachmentGroup.
+        val componentGroupsEmptyAttachment = listOf(
+                inputGroup,
+                outputGroup,
+                commandGroup,
+                attachmentGroup,
+                notaryGroup,
+                timeWindowGroup,
+                signersGroup
+        )
+        assertFails { WireTransaction(componentGroups = componentGroupsEmptyAttachment, privacySalt = privacySalt) }
+
+        // Ordering inside a component group matters.
+        val inputsShuffled = listOf(stateRef2, stateRef1, stateRef3)
+        val inputShuffledGroup = ComponentGroup(INPUTS_GROUP.ordinal, inputsShuffled.map { it -> it.serialize() })
+        val componentGroupsB = listOf(
+                inputShuffledGroup,
+                outputGroup,
+                commandGroup,
+                notaryGroup,
+                timeWindowGroup,
+                signersGroup
+        )
+        val wireTransaction1ShuffledInputs = WireTransaction(componentGroups = componentGroupsB, privacySalt = privacySalt)
+        // The ID has changed due to change of the internal ordering in inputs.
+        assertNotEquals(wireTransaction1ShuffledInputs.additionalMerkleRoot, wireTransactionA.additionalMerkleRoot)
+
+        // Group leaves (components) ordering does not affect the id. In this case, we added outputs group before inputs.
+        val shuffledComponentGroupsA = listOf(
+                outputGroup,
+                inputGroup,
+                commandGroup,
+                notaryGroup,
+                timeWindowGroup,
+                signersGroup
+        )
+        assertEquals(wireTransactionA.additionalMerkleRoot, WireTransaction(componentGroups = shuffledComponentGroupsA, privacySalt = privacySalt).additionalMerkleRoot)
+    }
 
     @Test(timeout=300_000)
 	fun `Merkle root computations`() {
