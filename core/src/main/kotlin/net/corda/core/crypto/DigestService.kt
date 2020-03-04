@@ -11,14 +11,14 @@ interface DigestService {
      *
      * @param bytes The [ByteArray] to hash.
      */
-    fun hash(bytes: ByteArray): SecureHash
+    fun hash(bytes: ByteArray, lengthExtensionResistant: Boolean = false): SecureHash
 
     /**
      * Computes the digest of the [String]'s UTF-8 byte contents.
      *
      * @param str [String] whose UTF-8 contents will be hashed.
      */
-    fun hash(str: String): SecureHash
+    fun hash(str: String, lengthExtensionResistant: Boolean = false): SecureHash
 
     /**
      * A digest value consisting of [digestLength] 0xFF bytes.
@@ -37,9 +37,9 @@ class SHA256Service() : DigestService {
     override val digestLength: Int
         get() = 32
 
-    override fun hash(bytes: ByteArray) = SecureHash.sha256(bytes)
+    override fun hash(bytes: ByteArray, lengthExtensionResistant: Boolean) = if (lengthExtensionResistant) SecureHash.sha256(SecureHash.sha256(bytes).bytes) else SecureHash.Companion.sha256(bytes)
 
-    override fun hash(str: String) = hash(str.toByteArray())
+    override fun hash(str: String, lengthExtensionResistant: Boolean): SecureHash = hash(str.toByteArray(), lengthExtensionResistant)
 
     override fun getAllOnesHash() = SecureHash.allOnesHash
 
