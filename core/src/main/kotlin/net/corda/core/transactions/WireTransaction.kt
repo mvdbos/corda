@@ -79,7 +79,7 @@ class WireTransaction(componentGroups: List<ComponentGroup>, val privacySalt: Pr
 
     /** This additional merkle root is represented by the root hash of a Merkle tree over the transaction components. */
     override val additionalMerkleRoot: SecureHash get() = additionalMerkleTree.hash
-    private val additionalMerkleTree: MerkleTree by lazy { MerkleTreeBuilder.getMerkleTreeForComponentGroups(componentGroups, DefaultDigestServiceFactory.getService(Algorithm.SHA256())) }
+    private val additionalMerkleTree: MerkleTree by lazy { MerkleTreeBuilder(componentGroups, privacySalt, DefaultDigestServiceFactory.getService(Algorithm.SHA256())).getMerkleTreeForComponentGroups() }
 
     /** Public keys that need to be fulfilled by signatures in order for the transaction to be valid. */
     val requiredSigningKeys: Set<PublicKey>
