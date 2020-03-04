@@ -21,7 +21,7 @@ import java.util.function.Predicate
  * may be missing in the case of this representing a "torn" transaction. Please see the user guide section
  * "Transaction tear-offs" to learn more about this feature.
  */
-abstract class TraversableTransaction(open val componentGroups: List<ComponentGroup>) : CoreTransaction() {
+abstract class TraversableTransaction(open val componentGroups: List<ComponentGroup>) : CoreTransaction(), NamedByAdditionalMerkleRoot {
     /** Hashes of the ZIP/JAR files that are needed to interpret the contents of this wire transaction. */
     val attachments: List<SecureHash> = deserialiseComponentGroup(componentGroups, SecureHash::class, ATTACHMENTS_GROUP)
 
@@ -86,6 +86,7 @@ abstract class TraversableTransaction(open val componentGroups: List<ComponentGr
 @CordaSerializable
 class FilteredTransaction internal constructor(
         override val id: SecureHash,
+        override val additionalMerkleRoot: SecureHash,
         val filteredComponentGroups: List<FilteredComponentGroup>,
         val groupHashes: List<SecureHash>
 ) : TraversableTransaction(filteredComponentGroups) {
@@ -99,7 +100,7 @@ class FilteredTransaction internal constructor(
         @JvmStatic
         fun buildFilteredTransaction(wtx: WireTransaction, filtering: Predicate<Any>): FilteredTransaction {
             val filteredComponentGroups = filterWithFun(wtx, filtering)
-            return FilteredTransaction(wtx.id, filteredComponentGroups, wtx.groupHashes)
+            return FilteredTransaction(wtx.id, wtx.additionalMerkleRoot, filteredComponentGroups, wtx.groupHashes)
         }
 
         /**
