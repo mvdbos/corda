@@ -13,7 +13,7 @@ import net.corda.core.transactions.WireTransaction
  */
 
 fun WireTransaction.accessGroupHashes() = this.groupHashes
-
+fun WireTransaction.accessComponentGroups() = this.componentGroups
 fun WireTransaction.accessGroupMerkleRoots() = this.groupsMerkleRoots
 fun WireTransaction.accessAvailableComponentHashes() = this.availableComponentHashes
 
