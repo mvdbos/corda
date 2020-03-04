@@ -1,8 +1,5 @@
 package net.corda.core.crypto
 
-import net.corda.core.crypto.SecureHash.SHA384
-import java.security.MessageDigest
-
 interface DigestService {
     /**
      * Computes the SHA-384 hash value of the [ByteArray].
@@ -37,27 +34,15 @@ interface DigestService {
 }
 
 class SHA256Service() : DigestService {
-    override fun hash(bytes: ByteArray) = SecureHash.SHA256(MessageDigest.getInstance("SHA-256").digest(bytes))
+    override fun hash(bytes: ByteArray) = SecureHash.sha256(bytes)
 
     override fun hash(str: String) = hash(str.toByteArray())
 
-    override fun getAllOnesHash() = SecureHash.SHA256(ByteArray(SecureHash.SHA256.DIGEST_LENGTH) { 255.toByte() })
+    override fun getAllOnesHash() = SecureHash.allOnesHash
 
-    override fun getZeroHash() = SecureHash.SHA256(ByteArray(SecureHash.SHA256.DIGEST_LENGTH) { 0.toByte() })
+    override fun getZeroHash() = SecureHash.zeroHash
 
-    override fun random() = hash(secureRandomBytes(SecureHash.SHA256.DIGEST_LENGTH))
-}
-
-class SHA384Service() : DigestService {
-    override fun hash(bytes: ByteArray) = SecureHash.SHA384(MessageDigest.getInstance("SHA-384").digest(bytes))
-
-    override fun hash(str: String) = hash(str.toByteArray())
-
-    override fun getAllOnesHash() = SecureHash.SHA384(ByteArray(SecureHash.SHA384.DIGEST_LENGTH) { 255.toByte() })
-
-    override fun getZeroHash() = SecureHash.SHA384(ByteArray(SecureHash.SHA384.DIGEST_LENGTH) { 0.toByte() })
-
-    override fun random() = hash(secureRandomBytes(SecureHash.SHA384.DIGEST_LENGTH))
+    override fun random() = SecureHash.randomSHA256()
 }
 
 
