@@ -54,32 +54,17 @@ class MerkleTreeBuilder(wtx: WireTransaction, private val digestService: DigestS
     }
 
     /**
-     * Calculate nonces for every transaction component, including new fields (due to backwards compatibility support) we cannot process.
-     * Nonce are computed in the following way:
-     * nonce1 = H(salt || path_for_1st_component)
-     * nonce2 = H(salt || path_for_2nd_component)
-     * etc.
-     * Thus, all of the nonces are "independent" in the sense that knowing one or some of them, you can learn
-     * nothing about the rest.
-     */
-    private val availableComponentNonces: Map<Int, List<SecureHash>> by lazy {
-        componentGroups.map {
-            Pair(it.groupIndex, it.components.mapIndexed { internalIndex, internalIt ->
-                componentHash(internalIt, privacySalt, it.groupIndex, internalIndex)
-            })
-        }.toMap()
-    }
-
-    /**
      * Calculate hashes for every transaction component. These will be used to build the full Merkle tree.
      * The root of the tree is the transaction identifier. The tree structure is helpful for privacy, please
      * see the user-guide section "Transaction tear-offs" to learn more about this topic.
      */
     private val availableComponentHashes: Map<Int, List<SecureHash>> by lazy {
-        componentGroups.map {
-            Pair(it.groupIndex, it.components.mapIndexed { internalIndex, internalIt ->
-                componentHash(availableComponentNonces[it.groupIndex]!![internalIndex], internalIt)
-            })
+        componentGroups.map { group ->
+            Pair(
+                    group.groupIndex,
+                    group.components.mapIndexed { componentIndex, component ->
+                        componentHash(componentNonce(component, privacySalt, group.groupIndex, componentIndex), component)
+                    })
         }.toMap()
     }
 
@@ -87,8 +72,10 @@ class MerkleTreeBuilder(wtx: WireTransaction, private val digestService: DigestS
      * Compute the hash of each serialised component so as to be used as Merkle tree leaf. The resultant output (leaf) is
      * calculated using the SHA256d algorithm, thus SHA256(SHA256(nonce || serializedComponent)), where nonce is computed
      * from [computeNonce].
+     *
+     * TODO: Why is the nonce hashed again? Because this function is only used for the nonce. Can't change it now, for the normal tx id, because compatibily, but we may not need to do it for our additional merkle tree.
      */
-    private fun componentHash(opaqueBytes: OpaqueBytes, privacySalt: PrivacySalt, componentGroupIndex: Int, internalIndex: Int): SecureHash =
+    private fun componentNonce(opaqueBytes: OpaqueBytes, privacySalt: PrivacySalt, componentGroupIndex: Int, internalIndex: Int): SecureHash =
             componentHash(computeNonce(privacySalt, componentGroupIndex, internalIndex), opaqueBytes)
 
     /** Return the SHA256(SHA256(nonce || serializedComponent)). */

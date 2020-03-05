@@ -82,7 +82,7 @@ class CompatibleTransactionTests {
         assertNotEquals(wireTransactionA.additionalMerkleRoot, wireTransactionOtherPrivacySalt.additionalMerkleRoot)
 
         // Full Merkle root is computed from the list of Merkle roots of each component group.
-        assertEquals(wireTransactionA.additionalMerkleRoot, MerkleTreeBuilder(wireTransactionA.accessComponentGroups(), privacySalt, digestService).getMerkleTree().hash)
+        assertEquals(wireTransactionA.additionalMerkleRoot, MerkleTreeBuilder(wireTransactionA, digestService).getMerkleTree().hash)
 
         // Trying to add an empty component group (not allowed), e.g. the empty attachmentGroup.
         val componentGroupsEmptyAttachment = listOf(
