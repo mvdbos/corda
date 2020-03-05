@@ -11,9 +11,10 @@ interface DigestServiceFactory {
     fun getService(algorithm: Algorithm): DigestService
 }
 
-object DefaultDigestServiceFactory: DigestServiceFactory {
-    override fun getService(algorithm: Algorithm): DigestService {
-        return algorithm.kClass.createInstance() as DigestService
-    }
+object DefaultDigestServiceFactory : DigestServiceFactory {
+    private val servicesCache = mutableMapOf<Algorithm, DigestService>()
 
+    override fun getService(algorithm: Algorithm): DigestService {
+        return servicesCache.getOrPut(algorithm) { algorithm.kClass.createInstance() as DigestService }
+    }
 }
