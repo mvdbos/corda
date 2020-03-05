@@ -72,7 +72,7 @@ class CompatibleTransactionTests {
 
     @Test(timeout=300_000)
     fun `Additional Merkle root computations`() {
-        val digestService = DefaultDigestServiceFactory.getService(Algorithm.SHA256())
+        val digestService = DefaultDigestServiceFactory.getService(Algorithm.BLAKE2b256())
         // Merkle tree computation is deterministic if the same salt and ordering are used.
         val wireTransactionB = WireTransaction(componentGroups = componentGroupsA, privacySalt = privacySalt)
         assertEquals(wireTransactionA.additionalMerkleRoot, wireTransactionB.additionalMerkleRoot)

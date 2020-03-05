@@ -5,6 +5,7 @@ import kotlin.reflect.full.createInstance
 
 sealed class Algorithm(val userFriendyName: String, val kClass: KClass<*>) {
     class SHA256 : Algorithm("SHA-256", SHA256Service::class)
+    class BLAKE2b256 : Algorithm("BLAKE2b256", BLAKE2b256Service::class)
 }
 
 interface DigestServiceFactory {
