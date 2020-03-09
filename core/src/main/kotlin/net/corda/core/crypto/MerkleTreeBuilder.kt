@@ -7,22 +7,26 @@ import net.corda.core.transactions.WireTransaction
 import net.corda.core.utilities.OpaqueBytes
 import java.nio.ByteBuffer
 
-class MerkleTreeBuilder(wtx: WireTransaction, private val digestService: DigestService) {
+class MerkleTreeBuilder(wtx: WireTransaction, private val componentGroupLeafDigestService: DigestService, private val nodeDigestService: DigestService) {
     private val componentGroups: List<ComponentGroup> = wtx.componentGroups
     private val privacySalt: PrivacySalt = wtx.privacySalt
 
+    constructor(wtx: WireTransaction): this(wtx, DefaultDigestServiceFactory.getService(Algorithm.SHA256()))
+    constructor(wtx: WireTransaction, digestService: DigestService): this(wtx, digestService, digestService)
+
     /**
      * Builds whole Merkle tree for a transaction.
-     * Briefly, each component group has its own sub Merkle tree and all of the roots of these trees are used as leaves
-     * in a top level Merkle tree.
+     * Each transaction component group has its own sub Merkle tree.
+     * All of the roots of these trees are used as leaves in the top level Merkle tree.
+     *
      * Note that ordering of elements inside a [ComponentGroup] matters when computing the Merkle root.
      * On the other hand, insertion group ordering does not affect the top level Merkle tree construction, as it is
      * actually an ordered Merkle tree, where its leaves are ordered based on the group ordinal in [ComponentGroupEnum].
      * If any of the groups is an empty list or a null object, then [SecureHash.allOnesHash] is used as its hash.
      * Also, [privacySalt] is not a Merkle tree leaf, because it is already "inherently" included via the component nonces.
      */
-    fun getMerkleTree(): MerkleTree {
-        return MerkleTree.getMerkleTree(groupHashes)
+    fun build(): MerkleTree {
+        return MerkleTree.getMerkleTree(groupHashes, nodeDigestService)
     }
 
     /**
@@ -35,7 +39,7 @@ class MerkleTreeBuilder(wtx: WireTransaction, private val digestService: DigestS
         // Even if empty and not used, we should at least send oneHashes for each known
         // or received but unknown (thus, bigger than known ordinal) component groups.
         for (i in 0..componentGroups.map { it.groupIndex }.max()!!) {
-            val root = groupsMerkleRoots[i] ?: SecureHash.allOnesHash
+            val root = componentGroupsMerkleTrees[i] ?: nodeDigestService.allOnesHash
             listOfLeaves.add(root)
         }
         listOfLeaves
@@ -45,12 +49,10 @@ class MerkleTreeBuilder(wtx: WireTransaction, private val digestService: DigestS
      * Calculate the hashes of the existing component groups, that are used to build the transaction's Merkle tree.
      * Each group has its own sub Merkle tree and the hash of the root of this sub tree works as a leaf of the top
      * level Merkle tree. The root of the latter is the transaction identifier.
-     *
-     * The tree structure is helpful for preserving privacy, please
-     * see the user-guide section "Transaction tear-offs" to learn more about this topic.
      */
-    private val groupsMerkleRoots: Map<Int, SecureHash> by lazy {
-        availableComponentHashes.map { Pair(it.key, MerkleTree.getMerkleTree(it.value).hash) }.toMap()
+    private val componentGroupsMerkleTrees: Map<Int, SecureHash> by lazy {
+        // TODO: switch this over to Pedersen Hashes
+        componentHashesPerComponentGroup.map { Pair(it.key, MerkleTree.getMerkleTree(it.value, nodeDigestService, componentGroupLeafDigestService).hash) }.toMap()
     }
 
     /**
@@ -58,7 +60,7 @@ class MerkleTreeBuilder(wtx: WireTransaction, private val digestService: DigestS
      * The root of the tree is the transaction identifier. The tree structure is helpful for privacy, please
      * see the user-guide section "Transaction tear-offs" to learn more about this topic.
      */
-    private val availableComponentHashes: Map<Int, List<SecureHash>> by lazy {
+    private val componentHashesPerComponentGroup: Map<Int, List<SecureHash>> by lazy {
         componentGroups.map { group ->
             Pair(
                     group.groupIndex,
@@ -79,7 +81,7 @@ class MerkleTreeBuilder(wtx: WireTransaction, private val digestService: DigestS
             componentHash(computeNonce(privacySalt, componentGroupIndex, internalIndex), opaqueBytes)
 
     /** Return the SHA256(SHA256(nonce || serializedComponent)). */
-    private fun componentHash(nonce: SecureHash, opaqueBytes: OpaqueBytes): SecureHash = digestService.hash(nonce.bytes + opaqueBytes.bytes, true)
+    private fun componentHash(nonce: SecureHash, opaqueBytes: OpaqueBytes): SecureHash = componentGroupLeafDigestService.hash(nonce.bytes + opaqueBytes.bytes, true)
 
     /**
      * Method to compute a nonce based on privacySalt, component group index and component internal index.
@@ -89,6 +91,6 @@ class MerkleTreeBuilder(wtx: WireTransaction, private val digestService: DigestS
      * @param internalIndex the internal index of this object in its corresponding components list.
      * @return SHA256(SHA256(privacySalt || groupIndex || internalIndex))
      */
-    private fun computeNonce(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = digestService.hash(privacySalt.bytes + ByteBuffer.allocate(8)
+    private fun computeNonce(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = componentGroupLeafDigestService.hash(privacySalt.bytes + ByteBuffer.allocate(8)
             .putInt(groupIndex).putInt(internalIndex).array(), true)
 }
