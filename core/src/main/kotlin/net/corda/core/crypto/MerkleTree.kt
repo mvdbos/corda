@@ -59,7 +59,7 @@ sealed class MerkleTree {
          * @param lastNodesList MerkleTree nodes from previous level.
          * @return Tree root.
          */
-        private tailrec fun buildMerkleTree(lastNodesList: List<MerkleTree>, digestService: DigestService): MerkleTree {
+        private tailrec fun buildMerkleTree(lastNodesList: List<MerkleTree>, nodeDigestService: DigestService): MerkleTree {
             return if (lastNodesList.size == 1) {
                 lastNodesList[0] // Root reached.
             } else {
@@ -69,10 +69,10 @@ sealed class MerkleTree {
                 for (i in 0..n - 2 step 2) {
                     val left = lastNodesList[i]
                     val right = lastNodesList[i + 1]
-                    val node = Node(digestService.hash(left.hash.bytes + right.hash.bytes), left, right)
+                    val node = Node(nodeDigestService.hash(left.hash.bytes + right.hash.bytes), left, right)
                     newLevelHashes.add(node)
                 }
-                buildMerkleTree(newLevelHashes, digestService)
+                buildMerkleTree(newLevelHashes, nodeDigestService)
             }
         }
     }

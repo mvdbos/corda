@@ -3,19 +3,16 @@ package net.corda.core.crypto
 import net.corda.core.contracts.ComponentGroupEnum
 import net.corda.core.contracts.PrivacySalt
 import net.corda.core.transactions.ComponentGroup
+import net.corda.core.transactions.FilteredTransaction
 import net.corda.core.transactions.WireTransaction
 import net.corda.core.utilities.OpaqueBytes
 import java.nio.ByteBuffer
 
-class MerkleTreeBuilder(wtx: WireTransaction, private val componentGroupLeafDigestService: DigestService, private val nodeDigestService: DigestService) {
-    private val componentGroups: List<ComponentGroup> = wtx.componentGroups
-    private val privacySalt: PrivacySalt = wtx.privacySalt
-
-    constructor(wtx: WireTransaction): this(wtx, DefaultDigestServiceFactory.getService(Algorithm.SHA256()))
-    constructor(wtx: WireTransaction, digestService: DigestService): this(wtx, digestService, digestService)
+interface TransactionMerkleTree {
+    val root: SecureHash
 
     /**
-     * Builds whole Merkle tree for a transaction.
+     * The full Merkle tree for a transaction.
      * Each transaction component group has its own sub Merkle tree.
      * All of the roots of these trees are used as leaves in the top level Merkle tree.
      *
@@ -25,16 +22,31 @@ class MerkleTreeBuilder(wtx: WireTransaction, private val componentGroupLeafDige
      * If any of the groups is an empty list or a null object, then [SecureHash.allOnesHash] is used as its hash.
      * Also, [privacySalt] is not a Merkle tree leaf, because it is already "inherently" included via the component nonces.
      */
-    fun build(): MerkleTree {
-        return MerkleTree.getMerkleTree(groupHashes, nodeDigestService)
-    }
+    val tree: MerkleTree
+}
+
+class FilteredTransactionMerkleTree(ftx: FilteredTransaction, ) {
+
+}
+
+class WireTransactionMerkleTree(wtx: WireTransaction, val componentGroupLeafDigestService: DigestService, val nodeDigestService: DigestService) : TransactionMerkleTree {
+    private val componentGroups: List<ComponentGroup> = wtx.componentGroups
+    private val privacySalt: PrivacySalt = wtx.privacySalt
+
+    constructor(wtx: WireTransaction) : this(wtx, DefaultDigestServiceFactory.getService(Algorithm.SHA256()))
+    constructor(wtx: WireTransaction, digestService: DigestService) : this(wtx, digestService, digestService)
+
+    override val root: SecureHash get() = tree.hash
+
+    override val tree: MerkleTree by lazy { MerkleTree.getMerkleTree(groupHashes, nodeDigestService) }
 
     /**
-     * The leaves (group hashes) of the top level Merkle tree.
+     * For each component group: the root hashes of the sub Merkle tree for that component group
+     *
      * If a group's Merkle root is allOnesHash, it is a flag that denotes this group is empty (if list) or null (if single object)
      * in the wire transaction.
      */
-    private val groupHashes: List<SecureHash> by lazy {
+    val groupHashes: List<SecureHash> by lazy {
         val listOfLeaves = mutableListOf<SecureHash>()
         // Even if empty and not used, we should at least send oneHashes for each known
         // or received but unknown (thus, bigger than known ordinal) component groups.
@@ -52,7 +64,8 @@ class MerkleTreeBuilder(wtx: WireTransaction, private val componentGroupLeafDige
      */
     private val componentGroupsMerkleTrees: Map<Int, SecureHash> by lazy {
         // TODO: switch this over to Pedersen Hashes
-        componentHashesPerComponentGroup.map { Pair(it.key, MerkleTree.getMerkleTree(it.value, nodeDigestService, componentGroupLeafDigestService).hash) }.toMap()
+        componentHashesPerComponentGroup.map { Pair(it.key, MerkleTree.getMerkleTree(it.value, nodeDigestService, componentGroupLeafDigestService).hash) }
+                .toMap()
     }
 
     /**
