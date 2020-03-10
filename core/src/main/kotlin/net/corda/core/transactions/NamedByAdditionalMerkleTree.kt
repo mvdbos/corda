@@ -1,19 +1,19 @@
 package net.corda.core.transactions
 
 import net.corda.core.KeepForDJVM
-import net.corda.core.crypto.SecureHash
+import net.corda.core.crypto.WireTransactionMerkleTree
 
 /**
  * Implemented by all transactions. This merkle root is an additional identifier to [NamedByHash.id].
  *
  */
 @KeepForDJVM
-interface NamedByAdditionalMerkleRoot {
+interface NamedByAdditionalMerkleTree {
     /**
-     * A [SecureHash] that identifies this transaction.
+     * A [WireTransactionMerkleTree] that identifies this transaction.
      *
      * This identifier is an additional merkle root of this transaction.
      * This enables flexibility in using additional, potentially less trusted algorithms for calculating this root.
      */
-    val additionalMerkleRoot: SecureHash
+    val additionalMerkleTree: WireTransactionMerkleTree
 }
