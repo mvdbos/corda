@@ -77,9 +77,6 @@ class WireTransaction(componentGroups: List<ComponentGroup>, val privacySalt: Pr
     /** The transaction id is represented by the root hash of Merkle tree over the transaction components. */
     override val id: SecureHash get() = merkleTree.hash
 
-    /** This additional merkle root is represented by the root hash of a Merkle tree over the transaction components. */
-    override val additionalMerkleTree: WireTransactionMerkleTree by lazy { WireTransactionMerkleTree(this, DefaultDigestServiceFactory.getService(Algorithm.BLAKE2b256())) }
-
     /** Public keys that need to be fulfilled by signatures in order for the transaction to be valid. */
     val requiredSigningKeys: Set<PublicKey>
         get() {
@@ -265,23 +262,26 @@ class WireTransaction(componentGroups: List<ComponentGroup>, val privacySalt: Pr
      * If any of the groups is an empty list or a null object, then [SecureHash.allOnesHash] is used as its hash.
      * Also, [privacySalt] is not a Merkle tree leaf, because it is already "inherently" included via the component nonces.
      */
-    val merkleTree: MerkleTree by lazy { MerkleTree.getMerkleTree(groupHashes) }
+//    val merkleTree: MerkleTree by lazy { MerkleTree.getMerkleTree(groupHashes) }
+    val merkleTree: WireTransactionMerkleTree by lazy { WireTransactionMerkleTree(this, DefaultDigestServiceFactory.getService(Algorithm.BLAKE2b256())) }
+
 
     /**
      * The leaves (group hashes) of the top level Merkle tree.
      * If a group's Merkle root is allOnesHash, it is a flag that denotes this group is empty (if list) or null (if single object)
      * in the wire transaction.
      */
-    internal val groupHashes: List<SecureHash> by lazy {
-        val listOfLeaves = mutableListOf<SecureHash>()
-        // Even if empty and not used, we should at least send oneHashes for each known
-        // or received but unknown (thus, bigger than known ordinal) component groups.
-        for (i in 0..componentGroups.map { it.groupIndex }.max()!!) {
-            val root = groupsMerkleRoots[i] ?: SecureHash.allOnesHash
-            listOfLeaves.add(root)
-        }
-        listOfLeaves
-    }
+//    internal val groupHashes: List<SecureHash> by lazy {
+//        val listOfLeaves = mutableListOf<SecureHash>()
+//        // Even if empty and not used, we should at least send oneHashes for each known
+//        // or received but unknown (thus, bigger than known ordinal) component groups.
+//        for (i in 0..componentGroups.map { it.groupIndex }.max()!!) {
+//            val root = groupsMerkleRoots[i] ?: SecureHash.allOnesHash
+//            listOfLeaves.add(root)
+//        }
+//        listOfLeaves
+//    }
+    internal val groupHashes = merkleTree.groupHashes
 
     /**
      * Calculate the hashes of the existing component groups, that are used to build the transaction's Merkle tree.
