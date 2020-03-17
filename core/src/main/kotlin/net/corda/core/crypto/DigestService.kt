@@ -1,6 +1,7 @@
 package net.corda.core.crypto
 
 import net.corda.core.DeleteForDJVM
+import org.bouncycastle.crypto.digests.Blake2sDigest
 import org.bouncycastle.jcajce.provider.digest.Blake2b
 
 interface DigestService {
@@ -46,6 +47,30 @@ class SHA256dService() : DigestService {
     override val allOnesHash = SecureHash.allOnesHash
 
     override val zeroHash = SecureHash.zeroHash
+}
+
+class BLAKE2sService : DigestService {
+//    private val blake2b256 = Blake2s.Blake2s256()
+    private val blake2b256 = Blake2sDigest(null, 32, null, "12345678".toByteArray())
+
+    override val digestLength: Int by lazy { blake2b256.digestSize }
+
+    /**
+     * BLAKE2b256 is resistant to length extension attack, so no double hashing needed.
+     */
+    override fun hash(bytes: ByteArray): SecureHash {
+        blake2b256.reset()
+        blake2b256.update(bytes, 0, bytes.size)
+        val hash = ByteArray(32)
+        blake2b256.doFinal(hash, 0)
+        return SecureHash.BLAKE2b256(hash)
+    }
+
+    override fun hash(str: String): SecureHash = hash(str.toByteArray())
+
+    override val allOnesHash = SecureHash.BLAKE2b256(ByteArray(digestLength) { 255.toByte() })
+
+    override val zeroHash = SecureHash.BLAKE2b256(ByteArray(digestLength) { 0.toByte() })
 }
 
 class BLAKE2b256Service : DigestService {

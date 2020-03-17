@@ -19,6 +19,15 @@ import java.util.function.Supplier
 @KeepForDJVM
 @CordaSerializable
 sealed class SecureHash(bytes: ByteArray) : OpaqueBytes(bytes) {
+    /** BLAKE2s256  Generated hash is fixed size, 256-bits (32-bytes). */
+    class BLAKE2s256(bytes: ByteArray, private val digestServiceFactory: DigestServiceFactory = DefaultDigestServiceFactory) : SecureHash(bytes) {
+        init {
+            require(bytes.size == 32) { "Invalid hash size, must be 32 bytes" }
+        }
+
+        override fun hashConcat(other: SecureHash) = digestServiceFactory.getService(Algorithm.BLAKE2s256()).hash(this.bytes + other.bytes)
+    }
+
     /** BLAKE2b256  Generated hash is fixed size, 256-bits (32-bytes). */
     class BLAKE2b256(bytes: ByteArray, private val digestServiceFactory: DigestServiceFactory = DefaultDigestServiceFactory) : SecureHash(bytes) {
         init {
