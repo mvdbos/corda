@@ -20,6 +20,10 @@ interface TransactionMerkleTree {
      * actually an ordered Merkle tree, where its leaves are ordered based on the group ordinal in [ComponentGroupEnum].
      * If any of the groups is an empty list or a null object, then [SecureHash.allOnesHash] is used as its hash.
      * Also, [privacySalt] is not a Merkle tree leaf, because it is already "inherently" included via the component nonces.
+     *
+     * It is possible to have the leafs of ComponentGroups use a different hash function than the nodes of the merkle trees.
+     * This allows optimisation in choosing a leaf hash function that is better suited to arbitrary length inputs and a node function
+     * that is suited to fixed length inputs.
      */
     val tree: MerkleTree
 }
@@ -56,9 +60,6 @@ class WireTransactionMerkleTree(wtx: WireTransaction, val componentGroupLeafDige
      * Calculate the hashes of the existing component groups, that are used to build the transaction's Merkle tree.
      * Each group has its own sub Merkle tree and the hash of the root of this sub tree works as a leaf of the top
      * level Merkle tree. The root of the latter is the transaction identifier.
-     *
-     * The tree structure is helpful for preserving privacy, please
-     * see the user-guide section "Transaction tear-offs" to learn more about this topic.
      */
     internal val groupsMerkleRoots: Map<Int, SecureHash> by lazy {
         availableComponentHashes.map { Pair(it.key, MerkleTree.getMerkleTree(it.value, nodeDigestService = nodeDigestService, leafDigestService = componentGroupLeafDigestService).hash) }
@@ -66,19 +67,18 @@ class WireTransactionMerkleTree(wtx: WireTransaction, val componentGroupLeafDige
     }
 
     /**
-     * Calculate nonces for every transaction component, including new fields (due to backwards compatibility support) we cannot process.
+     * Nonces for every transaction component in [componentGroups], including new fields (due to backwards compatibility support) we cannot process.
      * Nonce are computed in the following way:
      * nonce1 = H(salt || path_for_1st_component)
      * nonce2 = H(salt || path_for_2nd_component)
      * etc.
-     * Thus, all of the nonces are "independent" in the sense that knowing one or some of them, you can learn
-     * nothing about the rest.
+     * Thus, all of the nonces are "independent" in the sense that knowing one or some of them, you can learn nothing about the rest.
      */
     internal val availableComponentNonces: Map<Int, List<SecureHash>> by lazy {
         componentGroups.map {
             Pair(
                     it.groupIndex,
-                    it.components.mapIndexed { componentIndex, component -> componentNonce(component, privacySalt, it.groupIndex, componentIndex) }
+                    it.components.mapIndexed { componentIndex, component -> computeNonce(privacySalt, it.groupIndex, componentIndex) }
             )
         }.toMap()
     }
@@ -92,32 +92,19 @@ class WireTransactionMerkleTree(wtx: WireTransaction, val componentGroupLeafDige
         componentGroups.map {
             Pair(
                     it.groupIndex,
-                    it.components.mapIndexed { componentIndex, component -> componentHash(availableComponentNonces[it.groupIndex]!![componentIndex], component) }
+                    it.components.mapIndexed { componentIndex, component -> computeHash(availableComponentNonces[it.groupIndex]!![componentIndex], component) }
             )
         }.toMap()
     }
 
-    /**
-     * Compute the hash of each serialised component so as to be used as Merkle tree leaf. The resultant output (leaf) is
-     * calculated using the SHA256d algorithm, thus SHA256(SHA256(nonce || serializedComponent)), where nonce is computed
-     * from [computeNonce].
-     *
-     * TODO: Why is the nonce hashed again? Because this function is only used for the nonce. Can't change it now, for the normal tx id, because compatibily, but we may not need to do it for our additional merkle tree.
-     */
-    private fun componentNonce(opaqueBytes: OpaqueBytes, privacySalt: PrivacySalt, componentGroupIndex: Int, internalIndex: Int): SecureHash =
-            componentHash(computeNonce(privacySalt, componentGroupIndex, internalIndex), opaqueBytes)
-
-    /** Return the SHA256(SHA256(nonce || serializedComponent)). */
-    private fun componentHash(nonce: SecureHash, opaqueBytes: OpaqueBytes): SecureHash = componentGroupLeafDigestService.hash(nonce.bytes + opaqueBytes.bytes, true)
+    private fun computeHash(nonce: SecureHash, opaqueBytes: OpaqueBytes): SecureHash = componentGroupLeafDigestService.hash(nonce.bytes + opaqueBytes.bytes)
 
     /**
      * Method to compute a nonce based on privacySalt, component group index and component internal index.
-     * SHA256d (double SHA256) is used to prevent length extension attacks.
      * @param privacySalt a [PrivacySalt].
      * @param groupIndex the fixed index (ordinal) of this component group.
      * @param internalIndex the internal index of this object in its corresponding components list.
-     * @return SHA256(SHA256(privacySalt || groupIndex || internalIndex))
+     * @return H(privacySalt || groupIndex || internalIndex))
      */
-    private fun computeNonce(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = componentGroupLeafDigestService.hash(privacySalt.bytes + ByteBuffer.allocate(8)
-            .putInt(groupIndex).putInt(internalIndex).array(), true)
+    private fun computeNonce(privacySalt: PrivacySalt, groupIndex: Int, internalIndex: Int) = componentGroupLeafDigestService.hash(privacySalt.bytes + ByteBuffer.allocate(8).putInt(groupIndex).putInt(internalIndex).array())
 }
