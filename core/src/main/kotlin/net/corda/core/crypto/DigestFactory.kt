@@ -4,7 +4,7 @@ import kotlin.reflect.KClass
 import kotlin.reflect.full.createInstance
 
 sealed class Algorithm(val userFriendyName: String, val kClass: KClass<*>) {
-    class SHA256 : Algorithm("SHA-256", SHA256Service::class)
+    class SHA256d : Algorithm("SHA-256d", SHA256dService::class)
     class BLAKE2b256 : Algorithm("BLAKE2b256", BLAKE2b256Service::class)
 }
 

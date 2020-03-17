@@ -3,7 +3,6 @@ package net.corda.core.crypto
 import net.corda.core.contracts.ComponentGroupEnum
 import net.corda.core.contracts.PrivacySalt
 import net.corda.core.transactions.ComponentGroup
-import net.corda.core.transactions.FilteredTransaction
 import net.corda.core.transactions.WireTransaction
 import net.corda.core.utilities.OpaqueBytes
 import java.nio.ByteBuffer
@@ -25,15 +24,11 @@ interface TransactionMerkleTree {
     val tree: MerkleTree
 }
 
-class FilteredTransactionMerkleTree(ftx: FilteredTransaction, ) {
-
-}
-
 class WireTransactionMerkleTree(wtx: WireTransaction, val componentGroupLeafDigestService: DigestService, val nodeDigestService: DigestService) : TransactionMerkleTree {
     private val componentGroups: List<ComponentGroup> = wtx.componentGroups
     private val privacySalt: PrivacySalt = wtx.privacySalt
 
-    constructor(wtx: WireTransaction) : this(wtx, DefaultDigestServiceFactory.getService(Algorithm.SHA256()))
+    constructor(wtx: WireTransaction) : this(wtx, DefaultDigestServiceFactory.getService(Algorithm.SHA256d()))
     constructor(wtx: WireTransaction, digestService: DigestService) : this(wtx, digestService, digestService)
 
     override val root: SecureHash get() = tree.hash
@@ -46,12 +41,12 @@ class WireTransactionMerkleTree(wtx: WireTransaction, val componentGroupLeafDige
      * If a group's Merkle root is allOnesHash, it is a flag that denotes this group is empty (if list) or null (if single object)
      * in the wire transaction.
      */
-    val groupHashes: List<SecureHash> by lazy {
+    internal val groupHashes: List<SecureHash> by lazy {
         val listOfLeaves = mutableListOf<SecureHash>()
         // Even if empty and not used, we should at least send oneHashes for each known
         // or received but unknown (thus, bigger than known ordinal) component groups.
         for (i in 0..componentGroups.map { it.groupIndex }.max()!!) {
-            val root = componentGroupsMerkleTrees[i] ?: nodeDigestService.allOnesHash
+            val root = groupsMerkleRoots[i] ?: nodeDigestService.allOnesHash
             listOfLeaves.add(root)
         }
         listOfLeaves
@@ -61,11 +56,31 @@ class WireTransactionMerkleTree(wtx: WireTransaction, val componentGroupLeafDige
      * Calculate the hashes of the existing component groups, that are used to build the transaction's Merkle tree.
      * Each group has its own sub Merkle tree and the hash of the root of this sub tree works as a leaf of the top
      * level Merkle tree. The root of the latter is the transaction identifier.
+     *
+     * The tree structure is helpful for preserving privacy, please
+     * see the user-guide section "Transaction tear-offs" to learn more about this topic.
      */
-    private val componentGroupsMerkleTrees: Map<Int, SecureHash> by lazy {
-        // TODO: switch this over to Pedersen Hashes
-        componentHashesPerComponentGroup.map { Pair(it.key, MerkleTree.getMerkleTree(it.value, nodeDigestService, componentGroupLeafDigestService).hash) }
+    internal val groupsMerkleRoots: Map<Int, SecureHash> by lazy {
+        availableComponentHashes.map { Pair(it.key, MerkleTree.getMerkleTree(it.value, nodeDigestService = nodeDigestService, leafDigestService = componentGroupLeafDigestService).hash) }
                 .toMap()
+    }
+
+    /**
+     * Calculate nonces for every transaction component, including new fields (due to backwards compatibility support) we cannot process.
+     * Nonce are computed in the following way:
+     * nonce1 = H(salt || path_for_1st_component)
+     * nonce2 = H(salt || path_for_2nd_component)
+     * etc.
+     * Thus, all of the nonces are "independent" in the sense that knowing one or some of them, you can learn
+     * nothing about the rest.
+     */
+    internal val availableComponentNonces: Map<Int, List<SecureHash>> by lazy {
+        componentGroups.map {
+            Pair(
+                    it.groupIndex,
+                    it.components.mapIndexed { componentIndex, component -> componentNonce(component, privacySalt, it.groupIndex, componentIndex) }
+            )
+        }.toMap()
     }
 
     /**
@@ -73,13 +88,12 @@ class WireTransactionMerkleTree(wtx: WireTransaction, val componentGroupLeafDige
      * The root of the tree is the transaction identifier. The tree structure is helpful for privacy, please
      * see the user-guide section "Transaction tear-offs" to learn more about this topic.
      */
-    private val componentHashesPerComponentGroup: Map<Int, List<SecureHash>> by lazy {
-        componentGroups.map { group ->
+    internal val availableComponentHashes: Map<Int, List<SecureHash>> by lazy {
+        componentGroups.map {
             Pair(
-                    group.groupIndex,
-                    group.components.mapIndexed { componentIndex, component ->
-                        componentHash(componentNonce(component, privacySalt, group.groupIndex, componentIndex), component)
-                    })
+                    it.groupIndex,
+                    it.components.mapIndexed { componentIndex, component -> componentHash(availableComponentNonces[it.groupIndex]!![componentIndex], component) }
+            )
         }.toMap()
     }
 

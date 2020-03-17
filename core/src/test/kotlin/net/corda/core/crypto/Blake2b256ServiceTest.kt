@@ -4,19 +4,19 @@ import org.junit.Assert
 import org.junit.Test
 import kotlin.test.assertEquals
 
-class SHA256ServiceTest {
-    private val service: DigestService = DefaultDigestServiceFactory.getService(Algorithm.SHA256())
+class Blake2b256ServiceTest {
+    private val service: DigestService = DefaultDigestServiceFactory.getService(Algorithm.BLAKE2b256())
 
     @Test(timeout = 300_000)
     fun testHashBytes() {
         val hash = service.hash(byteArrayOf(0x64, -0x13, 0x42, 0x3a))
-        Assert.assertEquals("6D1687C143DF792A011A1E80670A4E4E0C25D0D87A39514409B1ABFC2043581F", hash.toString())
+        Assert.assertEquals("B79E85986C249B4CAAF61D4308DC4A7BF1D07F684D7A42A6B17D9F3D9F2962E4", hash.toString())
     }
 
     @Test(timeout = 300_000)
     fun testHashString() {
         val hash = service.hash("test")
-        Assert.assertEquals("9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08", hash.toString())
+        Assert.assertEquals("928B20366943E2AFD11EBC0EAE2E53A93BF177A4FCF35BCC64D503704E65E202", hash.toString())
     }
 
     @Test(timeout = 300_000)
@@ -30,7 +30,7 @@ class SHA256ServiceTest {
     }
 
     @Test(timeout = 300_000)
-    fun `sha256 does not retain state between same-thread invocations`() {
+    fun `Blake2b256 does not retain state between same-thread invocations`() {
         assertEquals(service.hash("abc"), service.hash("abc"))
     }
 }

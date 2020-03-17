@@ -14,14 +14,14 @@ interface DigestService {
      *
      * @param bytes The [ByteArray] to hash.
      */
-    fun hash(bytes: ByteArray, lengthExtensionResistant: Boolean = false): SecureHash
+    fun hash(bytes: ByteArray): SecureHash
 
     /**
      * Computes the digest of the [String]'s UTF-8 byte contents.
      *
      * @param str [String] whose UTF-8 contents will be hashed.
      */
-    fun hash(str: String, lengthExtensionResistant: Boolean = false): SecureHash
+    fun hash(str: String): SecureHash
 
     /**
      * A digest value consisting of [digestLength] 0xFF bytes.
@@ -36,12 +36,12 @@ interface DigestService {
     val zeroHash: SecureHash
 }
 
-class SHA256Service() : DigestService {
+class SHA256dService() : DigestService {
     override val digestLength = 32
 
-    override fun hash(bytes: ByteArray, lengthExtensionResistant: Boolean) = if (lengthExtensionResistant) SecureHash.sha256(SecureHash.sha256(bytes).bytes) else SecureHash.Companion.sha256(bytes)
+    override fun hash(bytes: ByteArray) = SecureHash.sha256Twice(bytes)
 
-    override fun hash(str: String, lengthExtensionResistant: Boolean): SecureHash = hash(str.toByteArray(), lengthExtensionResistant)
+    override fun hash(str: String): SecureHash = hash(str.toByteArray())
 
     override val allOnesHash = SecureHash.allOnesHash
 
@@ -54,11 +54,11 @@ class BLAKE2b256Service : DigestService {
     override val digestLength: Int by lazy { blake2b256.digestLength }
 
     /**
-     * BLAKE2b256 is resistant to length extension attack, so no double hashing needed. We ignore the parameter.
+     * BLAKE2b256 is resistant to length extension attack, so no double hashing needed.
      */
-    override fun hash(bytes: ByteArray, lengthExtensionResistant: Boolean) = SecureHash.BLAKE2b256(blake2b256.digest(bytes))
+    override fun hash(bytes: ByteArray) = SecureHash.BLAKE2b256(blake2b256.digest(bytes))
 
-    override fun hash(str: String, lengthExtensionResistant: Boolean): SecureHash = hash(str.toByteArray(), lengthExtensionResistant)
+    override fun hash(str: String): SecureHash = hash(str.toByteArray())
 
     override val allOnesHash = SecureHash.BLAKE2b256(ByteArray(digestLength) { 255.toByte() })
 
@@ -69,7 +69,7 @@ class BLAKE2b256Service : DigestService {
  * For testing only
  */
 @DeleteForDJVM
-fun SHA256Service.random() = SecureHash.randomSHA256()
+fun SHA256dService.random() = SecureHash.randomSHA256()
 @DeleteForDJVM
 fun BLAKE2b256Service.random() = SecureHash.BLAKE2b256(secureRandomBytes(32))
 
