@@ -211,9 +211,9 @@ class FilteredTransaction internal constructor(
             "Top level Merkle tree cannot be verified against transaction's id"
         }
 
-        verificationCheck(WireTransactionMerkleTree(this, DefaultDigestServiceFactory.getService(Algorithm.BLAKE2b256())).tree.hash == additionalMerkleTree.tree.hash) {
-            "Top level Merkle tree cannot be verified against transaction's additional merkle root"
-        }
+//        verificationCheck(WireTransactionMerkleTree(this, DefaultDigestServiceFactory.getService(Algorithm.BLAKE2b256())).tree.hash == additionalMerkleTree.tree.hash) {
+//            "Top level Merkle tree cannot be verified against transaction's additional merkle root"
+//        }
 
         // For completely blind verification (no components are included).
         if (filteredComponentGroups.isEmpty()) return
