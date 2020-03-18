@@ -37,16 +37,20 @@ interface DigestService {
     val zeroHash: SecureHash
 }
 
-class SHA256dService() : DigestService {
+open class SHA256Service() : DigestService {
     override val digestLength = 32
 
-    override fun hash(bytes: ByteArray) = SecureHash.sha256Twice(bytes)
+    override fun hash(bytes: ByteArray) = SecureHash.sha256(bytes)
 
     override fun hash(str: String): SecureHash = hash(str.toByteArray())
 
     override val allOnesHash = SecureHash.allOnesHash
 
     override val zeroHash = SecureHash.zeroHash
+}
+
+class SHA256dService() : SHA256Service() {
+    override fun hash(bytes: ByteArray) = SecureHash.sha256Twice(bytes)
 }
 
 class BLAKE2sService : DigestService {

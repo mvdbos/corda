@@ -28,7 +28,7 @@ sealed class MerkleTree {
          * Merkle tree building using hashes, with zero hash padding to full power of 2.
          */
         fun getMerkleTree(allLeavesHashes: List<SecureHash>): MerkleTree {
-            return getMerkleTree(allLeavesHashes, DefaultDigestServiceFactory.getService(Algorithm.SHA256d()))
+            return getMerkleTree(allLeavesHashes, DefaultDigestServiceFactory.getService(Algorithm.SHA256()))
         }
 
         fun getMerkleTree(allLeavesHashes: List<SecureHash>, digestService: DigestService): MerkleTree {

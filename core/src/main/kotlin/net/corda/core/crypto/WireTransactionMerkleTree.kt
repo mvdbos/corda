@@ -78,7 +78,7 @@ class WireTransactionMerkleTree(wtx: WireTransaction, val componentGroupLeafDige
         componentGroups.map {
             Pair(
                     it.groupIndex,
-                    it.components.mapIndexed { componentIndex, component -> computeNonce(privacySalt, it.groupIndex, componentIndex) }
+                    it.components.mapIndexed { componentIndex, _ -> computeNonce(privacySalt, it.groupIndex, componentIndex) }
             )
         }.toMap()
     }
