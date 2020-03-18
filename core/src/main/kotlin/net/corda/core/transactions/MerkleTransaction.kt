@@ -211,9 +211,11 @@ class FilteredTransaction internal constructor(
             "Top level Merkle tree cannot be verified against transaction's id"
         }
 
-//        verificationCheck(WireTransactionMerkleTree(this, DefaultDigestServiceFactory.getService(Algorithm.BLAKE2b256())).tree.hash == additionalMerkleTree.tree.hash) {
-//            "Top level Merkle tree cannot be verified against transaction's additional merkle root"
-//        }
+        // TODO: What does this check even test? Same for the already existing one directly above.
+        // both checks recalculate the merkle root with the same data they used before. Outcome can only be identical?
+        verificationCheck(MerkleTree.getMerkleTree(additionalMerkleTree.groupHashes, additionalMerkleTree.nodeDigestService).hash == additionalMerkleTree.root) {
+            "Top level Merkle tree cannot be verified against transaction's additional merkle root"
+        }
 
         // For completely blind verification (no components are included).
         if (filteredComponentGroups.isEmpty()) return
