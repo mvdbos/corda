@@ -71,7 +71,7 @@ class CompatibleTransactionTests {
 
     @Test(timeout=300_000)
     fun `Additional Merkle root computations`() {
-        val digestService = DefaultDigestServiceFactory.getService(Algorithm.BLAKE2b256())
+        val digestService = DefaultDigestServiceFactory.getService(Algorithm.BLAKE2s256())
         // Merkle tree computation is deterministic if the same salt and ordering are used.
         val wireTransactionB = WireTransaction(componentGroups = componentGroupsA, privacySalt = privacySalt)
         assertEquals(wireTransactionA.additionalMerkleTree.root, wireTransactionB.additionalMerkleTree.root)
@@ -81,7 +81,9 @@ class CompatibleTransactionTests {
         assertNotEquals(wireTransactionA.additionalMerkleTree.root, wireTransactionOtherPrivacySalt.additionalMerkleTree.root)
 
         // Full Merkle root is computed from the list of Merkle roots of each component group.
-        assertEquals(wireTransactionA.additionalMerkleTree.root, WireTransactionMerkleTree(wireTransactionA, digestService).tree.hash)
+        assertEquals(wireTransactionA.additionalMerkleTree.root, WireTransactionMerkleTree(
+                wireTransactionA, componentGroupLeafDigestService = digestService, nodeDigestService = digestService
+        ).root)
 
         // Trying to add an empty component group (not allowed), e.g. the empty attachmentGroup.
         val componentGroupsEmptyAttachment = listOf(
