@@ -77,15 +77,6 @@ class WireTransaction(componentGroups: List<ComponentGroup>, val privacySalt: Pr
     /** The transaction id is represented by the root hash of Merkle tree over the transaction components. */
     override val id: SecureHash get() = merkleTree.hash
 
-    /** This additional merkle root is represented by the root hash of a Merkle tree over the transaction components. */
-    override val additionalMerkleTree: WireTransactionMerkleTree by lazy {
-        WireTransactionMerkleTree(
-                this,
-                componentGroupLeafDigestService = DefaultDigestServiceFactory.getService(Algorithm.BLAKE2s256()),
-                nodeDigestService = DefaultDigestServiceFactory.getService(Algorithm.BLAKE2s256())
-        )
-    }
-
     /** Public keys that need to be fulfilled by signatures in order for the transaction to be valid. */
     val requiredSigningKeys: Set<PublicKey>
         get() {
